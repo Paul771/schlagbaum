@@ -84,35 +84,35 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| STREAM-01 | | Pending |
-| STREAM-02 | | Pending |
-| STREAM-03 | | Pending |
-| STREAM-04 | | Pending |
-| STREAM-05 | | Pending |
-| BARRIER-01 | | Pending |
-| BARRIER-02 | | Pending |
-| BARRIER-03 | | Pending |
-| BARRIER-04 | | Pending |
-| VEHICLE-01 | | Pending |
-| VEHICLE-02 | | Pending |
-| VEHICLE-03 | | Pending |
-| PLATE-01 | | Pending |
-| PLATE-02 | | Pending |
-| PLATE-03 | | Pending |
-| PLATE-04 | | Pending |
-| STORE-01 | | Pending |
-| STORE-02 | | Pending |
-| STORE-03 | | Pending |
-| STORE-04 | | Pending |
-| COORD-01 | | Pending |
-| COORD-02 | | Pending |
-| COORD-03 | | Pending |
+| STREAM-01 | Phase 1 | Pending |
+| STREAM-02 | Phase 1 | Pending |
+| STREAM-03 | Phase 1 | Pending |
+| STREAM-04 | Phase 1 | Pending |
+| STREAM-05 | Phase 1 | Pending |
+| BARRIER-01 | Phase 2 | Pending |
+| BARRIER-02 | Phase 2 | Pending |
+| BARRIER-03 | Phase 2 | Pending |
+| BARRIER-04 | Phase 2 | Pending |
+| VEHICLE-01 | Phase 4 | Pending |
+| VEHICLE-02 | Phase 4 | Pending |
+| VEHICLE-03 | Phase 4 | Pending |
+| PLATE-01 | Phase 5 | Pending |
+| PLATE-02 | Phase 5 | Pending |
+| PLATE-03 | Phase 5 | Pending |
+| PLATE-04 | Phase 5 | Pending |
+| STORE-01 | Phase 3 | Pending |
+| STORE-02 | Phase 3 | Pending |
+| STORE-03 | Phase 3 | Pending |
+| STORE-04 | Phase 3 | Pending |
+| COORD-01 | Phase 3 | Pending |
+| COORD-02 | Phase 3 | Pending |
+| COORD-03 | Phase 6 | Pending |
 
 **Coverage:**
 - v1 requirements: 23 total
-- Mapped to phases: 0
-- Unmapped: 23 ⚠️
+- Mapped to phases: 23
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-09-09*
-*Last updated: 2026-09-09 after initial definition*
+*Last updated: 2026-09-09 after roadmap creation*
