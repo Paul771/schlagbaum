@@ -461,27 +461,29 @@ class FrameBuffer:
 | A6 | Python 3.14 (system) is acceptable for the venv rather than requiring 3.12/3.13 | Summary / Stack | LOW — wheels verified present, so no functional risk; only a doc deviation |
 | A7 | FPS throttle via `-vf fps=1.5` is a suitable rate-control mechanism for the mjpeg pipe | Pattern 1 | LOW — alternative is time-based throttle in Python; both fine, verify output rate |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **What is the exact `privratnik.net` login/token flow?**
+> All four questions below are resolved by Phase 1 plans (01-01 / 01-02). Each carries its resolution route.
+
+1. **What is the exact `privratnik.net` login/token flow?** — (RESOLVED via 01-02 Task 3 probe script)
    - What we know: PROJECT.md says login via phone/password → page `video-control.php`; stream at `proxy.php?link=<cam_url>?token=<TOKEN>`; headers `Referer` + `Range: bytes=0-` + `PHPSESSID` cookie. User can reset token/lines from DevTools Network log.
    - What's unclear: the POST endpoint, the request fields, and how the token is returned (HTML form, JSON, redirect). This is **the highest-risk unknown in the whole project** (SUMMARY.md).
-   - Recommendation: Phase 1 MUST include an empirical validation step against the real stream (a small auth probe script) before the full pipeline is wired. If the user can provide a Network-tab export, extract the exact request shape.
+   - Resolution: Phase 1 (01-02 Task 3) ships `scripts/probe_privratnik_auth.py`, a standalone empirical probe that validates A1/A2 against the real stream before the full pipeline is trusted. `auth.py` implements a best-effort token parser (HTML/JSON/redirect) that the probe refines. If the user provides a Network-tab export, extract the exact request shape.
 
-2. **Is the stream an endless preview or a finite MP4 clip that needs periodic re-opening?**
+2. **Is the stream an endless preview or a finite MP4 clip that needs periodic re-opening?** — (RESOLVED via 01-02 supervisor design)
    - What we know: PROJECT.md/STACK.md say `proxy.php` returns MP4 previews, not persistent RTSP; CONTEXT.md says "поток отдаётся как MP4/превью … нужно периодически переоткрывать поток".
    - What's unclear: the clip length and whether the proxy loops/fades. This affects whether the supervisor re-opens on a schedule vs only on error.
-   - Recommendation: treat each ffmpeg subprocess as short-lived and have the supervisor re-open periodically (or when EOF hits), rather than assuming an endless pipe.
+   - Resolution: the supervisor (01-02 Task 2) treats each ffmpeg subprocess as short-lived and re-opens on EOF/stale-stream (no valid frame within `frame_stale_seconds`), rather than assuming an endless pipe. `read_jpeg_frame()` returns `None` at EOF, which triggers the reconnect path.
 
-3. **FPS/queue sizing exact values (Claude's discretion)**
+3. **FPS/queue sizing exact values (Claude's discretion)** — (RESOLVED via 01-01 config defaults)
    - What we know: D-08 1-2 fps; D-09 10-20 queue; D-03 1s→max.
    - What's unclear: concrete values.
-   - Recommendation: queue_size=15, capture_fps=1.5, frame_stale=12s, backoff_max=60s. These satisfy the locked ranges; record as config defaults, easy to tune.
+   - Resolution: 01-01 Task 2 sets `config.json` defaults `queue_size=15`, `capture_fps=1.5`, `frame_stale_seconds=12`, `backoff_max=60.0`. These satisfy the locked ranges; recorded as config defaults, easy to tune.
 
-4. **Is ffmpeg install acceptable before capture runs?**
+4. **Is ffmpeg install acceptable before capture runs?** — (RESOLVED via 01-02 pre-flight + configurable path)
    - What we know: ffmpeg is NOT installed (`[VERIFIED: env probe]`); winget/choco/scoop all present.
    - What's unclear: user preference for install method, or whether an existing binary exists elsewhere.
-   - Recommendation: make `ffmpeg_path` configurable; plan an install/discovery task + graceful missing-ffmpeg error. Flag to user for confirmation at planning.
+   - Resolution: `ffmpeg_path` is configurable in `config.json`; 01-02 Task 2 adds a graceful missing-ffmpeg pre-flight check in `main.py` that prints a clear "install via: winget install Gyan.FFmpeg" message and exits non-zero. Flagged to user for confirmation at planning.
 
 ## Environment Availability
 
