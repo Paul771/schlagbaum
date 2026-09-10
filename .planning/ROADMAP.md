@@ -26,7 +26,11 @@ A local barrier-gate video analytics system. It fetches frames from two IP camer
   3. Frames are pushed to a bounded drop-oldest queue, so a slow downstream stage never blocks or stalls frame capture.
   4. Every frame/event is tagged with the correct `camera_id`, so frames from camera 1 and camera 2 are distinguishable.
   5. Tokens, camera URLs, and secrets come from env/config, not hardcoded source, and secrets are not committed.
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Walking Skeleton data layer: config/secrets + bounded drop-oldest frame buffer
+- [ ] 01-02-PLAN.md — Capture path: auth session manager + ffmpeg stream client + reconnect supervisor
 
 ### Phase 2: Barrier State Detector
 **Goal**: The system reliably reports whether the barrier is closed, opening, open, or closing across state transitions, while ignoring cars passing with the gate closed.
