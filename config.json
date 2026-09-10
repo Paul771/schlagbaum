@@ -1,0 +1,13 @@
+{
+  "cameras": {
+    "cam_1": "https://cam2.privratnik.net/80146f20_3105/preview.mp4",
+    "cam_2": "https://cam2.privratnik.net/f9456e90_3099/preview.mp4"
+  },
+  "queue_size": 15,
+  "capture_fps": 1.5,
+  "frame_stale_seconds": 12,
+  "backoff_initial": 1.0,
+  "backoff_max": 60.0,
+  "ffmpeg_path": "ffmpeg",
+  "referer": "https://privratnik.net/files/video-control.php"
+}
