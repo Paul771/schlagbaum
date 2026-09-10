@@ -1,18 +1,18 @@
 ---
 gsd_state_version: "1.0"
 current_phase: 01
-current_phase_name: stream-client-frame-buffer
+current_phase_name: Stream Client + Frame Buffer
 status: executing
-stopped_at: Phase 1 context gathered
-last_updated: "2026-09-10T07:01:48.978Z"
-last_activity: 2026-09-09
-last_activity_desc: Roadmap created
-state_head: 36fd63ccce25d5ffa132ac96cc3cd813640b7d5a
+stopped_at: Completed 01-01-PLAN.md
+last_updated: "2026-09-10T12:52:47.320Z"
+last_activity: 2026-09-10
+last_activity_desc: Phase 01 execution started
+state_head: 32385fbb9769aac7e9f30532e948a45a52f1a1d1
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 2
-  completed_plans: 0
+  completed_plans: 1
   percent: 0
 ---
 
@@ -23,14 +23,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-09-09)
 
 **Core value:** Надёжно фиксировать каждое открытие шлагбаума и распознавать номер проезжающего автомобиля, сохраняя событие с фото в локальную базу — без пропусков и без ручного вмешательства.
-**Current focus:** Phase 1 — Stream Client + Frame Buffer
+**Current focus:** Phase 01 — Stream Client + Frame Buffer
 
 ## Current Position
 
-Phase: 01 (stream-client-frame-buffer) — READY TO EXECUTE
-Plan: — (not yet planned)
+Phase: 01 (Stream Client + Frame Buffer) — EXECUTING
+Plan: 2 of 2
 Status: Ready to execute
-Last activity: 2026-09-09 — Roadmap created
+Last activity: 2026-09-10 — Phase 01 execution started
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -54,6 +54,11 @@ Progress: [░░░░░░░░░░] 0%
 - Trend: —
 
 *Updated after each plan completion*
+**Per-Plan Metrics:**
+
+| Plan | Duration | Tasks | Files |
+|------|----------|-------|-------|
+| Phase 01 P01 | 10m | 3 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -67,6 +72,7 @@ Recent decisions affecting current work:
 - [Phase 3]: SQLite event store with photos as files on disk (paths in DB, not BLOBs); FSM must exist before persistence to avoid duplicate events.
 - [Phase 4]: Vehicle detection gates OCR calls (cost/rate-limit control) and precedes Plate Recognizer.
 - [Phase 5]: External ALPR provider choice (Plate Recognizer vs OpenALPR vs Google Vision) is UNVERIFIED — re-verify pricing/RU-accuracy before committing in planning.
+- [Phase 01]: queue_size=15, capture_fps=1.5, frame_stale_seconds=12, backoff_max=60.0 as config defaults (Claude's discretion within locked ranges)
 
 ### Pending Todos
 
@@ -91,6 +97,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-09-09T15:27:21.799Z
-Stopped at: Phase 1 context gathered
-Resume file: C:/dev/schlagbaum/.planning/phases/01-stream-client-frame-buffer/01-CONTEXT.md
+Last session: 2026-09-10T12:52:47.285Z
+Stopped at: Completed 01-01-PLAN.md
+Resume file: None

@@ -12,8 +12,8 @@ Requirements for initial release. Each maps to roadmap phases.
 - [ ] **STREAM-01**: Система получает видеопоток с двух камер через `privratnik.net` proxy URL
 - [ ] **STREAM-02**: Система поддерживает авторизацию (PHPSESSID cookie + token + Referer) для доступа к потоку
 - [ ] **STREAM-03**: Система автоматически переподключается и обновляет токен при истечении сессии
-- [ ] **STREAM-04**: Каждая камера работает как независимый канал захвата, события тегируются camera_id
-- [ ] **STREAM-05**: Система извлекает кадры из потока для последующего анализа
+- [x] **STREAM-04**: Каждая камера работает как независимый канал захвата, события тегируются camera_id
+- [x] **STREAM-05**: Система извлекает кадры из потока для последующего анализа
 
 ### Детекция шлагбаума (Barrier State Detector)
 
@@ -87,8 +87,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | STREAM-01 | Phase 1 | Pending |
 | STREAM-02 | Phase 1 | Pending |
 | STREAM-03 | Phase 1 | Pending |
-| STREAM-04 | Phase 1 | Pending |
-| STREAM-05 | Phase 1 | Pending |
+| STREAM-04 | Phase 1 | Complete |
+| STREAM-05 | Phase 1 | Complete |
 | BARRIER-01 | Phase 2 | Pending |
 | BARRIER-02 | Phase 2 | Pending |
 | BARRIER-03 | Phase 2 | Pending |
@@ -109,6 +109,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | COORD-03 | Phase 6 | Pending |
 
 **Coverage:**
+
 - v1 requirements: 23 total
 - Mapped to phases: 23
 - Unmapped: 0 ✓
