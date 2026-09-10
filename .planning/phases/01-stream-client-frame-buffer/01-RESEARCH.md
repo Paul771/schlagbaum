@@ -209,17 +209,18 @@ def push_or_drop(frame_q, frame, camera_id):
 ```python
 import time
 
-def run_capture_with_supervisor(start, stop_event, session_mgr, camera):
+def run_capture_with_supervisor(start, stop_event, session_mgr, camera_id, cam_url):
     backoff = 1                       # starts at 1s (D-03)
     max_backoff = 60                  # discretion: cap at 60s
     while not stop_event.is_set():
         try:
-            proc = start(camera, session_mgr.live_headers(camera))
+            url, headers = session_mgr.stream_headers_and_url(camera_id, cam_url)  # re-auths via get_session()
+            proc = start(url, headers)   # start is a closure over build_ffmpeg_cmd + spawn_ffmpeg
             yield_from_frames_or_raise(proc)   # raises StreamStale if no frame in N sec
             backoff = 1  # healthy; reset
         except (StreamStaleError, AuthExpiredError) as e:
             log(e)
-            session_mgr.invalidate(camera)     # force get_session() re-auth (Pitfall 1)
+            session_mgr.get_session()          # force fresh re-auth (Pitfall 1)
             kill_proc(proc)
             stop_event.wait(backoff)           # sleep, interruptible
             backoff = min(backoff * 2, max_backoff)
@@ -469,6 +470,7 @@ class FrameBuffer:
    - What we know: PROJECT.md says login via phone/password → page `video-control.php`; stream at `proxy.php?link=<cam_url>?token=<TOKEN>`; headers `Referer` + `Range: bytes=0-` + `PHPSESSID` cookie. User can reset token/lines from DevTools Network log.
    - What's unclear: the POST endpoint, the request fields, and how the token is returned (HTML form, JSON, redirect). This is **the highest-risk unknown in the whole project** (SUMMARY.md).
    - Resolution: Phase 1 (01-02 Task 3) ships `scripts/probe_privratnik_auth.py`, a standalone empirical probe that validates A1/A2 against the real stream before the full pipeline is trusted. `auth.py` implements a best-effort token parser (HTML/JSON/redirect) that the probe refines. If the user provides a Network-tab export, extract the exact request shape.
+   - Interface note (checker iter 2): the `SessionManager` interface is `login()`, `get_session()`, and `stream_headers_and_url(camera_id, cam_url)` — there is NO `live_headers()` or `invalidate()` method. The supervisor (Pattern 2) calls `stream_headers_and_url(camera_id, cam_url)` to obtain the tokenized URL + headers (which re-invokes `get_session()` for a fresh session/token per Pitfall 1), and calls `get_session()` directly to force re-auth on a stale-stream/auth failure. The `start` callable is a closure over `stream_client.py`'s `build_ffmpeg_cmd` + `spawn_ffmpeg`; there is no `StreamClient` class. Do not reintroduce `live_headers`/`invalidate`.
 
 2. **Is the stream an endless preview or a finite MP4 clip that needs periodic re-opening?** — (RESOLVED via 01-02 supervisor design)
    - What we know: PROJECT.md/STACK.md say `proxy.php` returns MP4 previews, not persistent RTSP; CONTEXT.md says "поток отдаётся как MP4/превью … нужно периодически переоткрывать поток".
