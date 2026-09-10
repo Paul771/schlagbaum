@@ -2,17 +2,17 @@
 gsd_state_version: "1.0"
 current_phase: 01
 current_phase_name: Stream Client + Frame Buffer
-status: executing
-stopped_at: Completed 01-01-PLAN.md
-last_updated: "2026-09-10T12:52:47.320Z"
+status: verifying
+stopped_at: Completed 01-02-PLAN.md
+last_updated: "2026-09-10T13:05:12.134Z"
 last_activity: 2026-09-10
 last_activity_desc: Phase 01 execution started
-state_head: 32385fbb9769aac7e9f30532e948a45a52f1a1d1
+state_head: ac1aa841745efce800cfc51834e838b6df46fbae
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 2
-  completed_plans: 1
+  completed_plans: 2
   percent: 0
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-09)
 
 Phase: 01 (Stream Client + Frame Buffer) — EXECUTING
 Plan: 2 of 2
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-09-10 — Phase 01 execution started
 
 Progress: [░░░░░░░░░░] 0%
@@ -59,6 +59,7 @@ Progress: [░░░░░░░░░░] 0%
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
 | Phase 01 P01 | 10m | 3 tasks | 10 files |
+| Phase 01 P02 | 20m | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -73,6 +74,8 @@ Recent decisions affecting current work:
 - [Phase 4]: Vehicle detection gates OCR calls (cost/rate-limit control) and precedes Plate Recognizer.
 - [Phase 5]: External ALPR provider choice (Plate Recognizer vs OpenALPR vs Google Vision) is UNVERIFIED — re-verify pricing/RU-accuracy before committing in planning.
 - [Phase 01]: queue_size=15, capture_fps=1.5, frame_stale_seconds=12, backoff_max=60.0 as config defaults (Claude's discretion within locked ranges)
+- [Phase 01]: SessionManager interface is login()/get_session()/stream_headers_and_url(camera_id, cam_url) — no live_headers()/invalidate()
+- [Phase 01]: Supervisor uses a reader thread + queue so silent stream death is detected via frame_stale_seconds without blocking on a hung pipe
 
 ### Pending Todos
 
@@ -97,6 +100,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-09-10T12:52:47.285Z
-Stopped at: Completed 01-01-PLAN.md
+Last session: 2026-09-10T13:05:12.103Z
+Stopped at: Completed 01-02-PLAN.md
 Resume file: None

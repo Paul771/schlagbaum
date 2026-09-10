@@ -29,7 +29,7 @@ A local barrier-gate video analytics system. It fetches frames from two IP camer
   4. Every frame/event is tagged with the correct `camera_id`, so frames from camera 1 and camera 2 are distinguishable.
   5. Tokens, camera URLs, and secrets come from env/config, not hardcoded source, and secrets are not committed.
 
-**Plans**: 1/2 plans executed
+**Plans**: 2/2 plans executed
 
 Plans:
 **Wave 1**
@@ -38,7 +38,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 01-02-PLAN.md — Capture path: auth session manager + ffmpeg stream client + reconnect supervisor
+- [x] 01-02-PLAN.md — Capture path: auth session manager + ffmpeg stream client + reconnect supervisor
 
 ### Phase 2: Barrier State Detector
 
@@ -122,7 +122,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Stream Client + Frame Buffer | 1/2 | In Progress|  |
+| 1. Stream Client + Frame Buffer | 2/2 | In Progress|  |
 | 2. Barrier State Detector | 0/TBD | Not started | - |
 | 3. Event Store + Photo Store + Event Coordinator (FSM) | 0/TBD | Not started | - |
 | 4. Vehicle Detector | 0/TBD | Not started | - |
