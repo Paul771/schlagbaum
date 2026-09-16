@@ -17,15 +17,15 @@ import queue as _queue
 import threading
 import time
 
+import requests
+
+from src.capture.auth import AuthExpiredError
+
 logger = logging.getLogger(__name__)
 
 
 class StreamStaleError(Exception):
     """Raised when no valid frame arrives within the stale threshold."""
-
-
-class AuthExpiredError(Exception):
-    """Raised when the session/token is detected as expired."""
 
 
 def run_capture_with_supervisor(start, stop_event, session_mgr, camera_id, cam_url,
@@ -52,7 +52,11 @@ def run_capture_with_supervisor(start, stop_event, session_mgr, camera_id, cam_u
                                                 clock=clock, read_frame=read_frame):
                 backoff = backoff_initial  # healthy frame; reset
                 yield frame
-        except (StreamStaleError, AuthExpiredError) as exc:
+        except (StreamStaleError, AuthExpiredError, requests.RequestException, OSError) as exc:
+            # WR-01: transport/auth failures on the entry path (network down,
+            # timeout, 4xx/5xx, unexpected socket error) are transient — treat
+            # them as reconnect triggers rather than letting them kill the
+            # capture thread ("reconnect without misses" core value).
             logger.warning("camera=%s capture error: %s; re-authing and reconnecting", camera_id, exc)
             try:
                 session_mgr.get_session()  # force fresh re-auth (Pitfall 1)
@@ -112,9 +116,18 @@ def _yield_frames_or_raise(proc, frame_stale_seconds, stop_event, clock=time.mon
 
 
 def _kill_proc(proc):
-    """Kill the ffmpeg process and wait for it to exit (Pitfall 6)."""
+    """Kill the ffmpeg process and wait for it to exit (Pitfall 6).
+
+    If an attached stderr drain (from ``spawn_ffmpeg``) is present, it is shut
+    down AFTER the process is killed so the drain thread never blocks reaping
+    the child (WR-02 — drained pipes are torn down with the process).
+    """
     try:
         proc.kill()
         proc.wait()
     except Exception:  # pragma: no cover - process may already be gone
         pass
+    finally:
+        drain = getattr(proc, "stderr_drain", None)
+        if drain is not None:
+            drain.join(timeout=1.0)  # pragma: no cover - only real spawn_ffmpeg has one

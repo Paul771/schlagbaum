@@ -65,7 +65,7 @@ def _session_mgr():
     mgr = mock.Mock()
     mgr.stream_headers_and_url.return_value = (
         "https://cam2.privratnik.net/80146f20_3105/preview.mp4?token=tok",
-        ["-headers", "Referer: x\r\n"],
+        "Referer: x\r\n",  # pure header content string (CR-01)
     )
     return mgr
 
@@ -85,7 +85,7 @@ def test_supervisor_reauths_and_reconnects_on_stale_stream():
     assert mgr.stream_headers_and_url.call_count == len(procs)
     for url, headers, _ in procs:
         assert url == "https://cam2.privratnik.net/80146f20_3105/preview.mp4?token=tok"
-        assert headers == ["-headers", "Referer: x\r\n"]
+        assert headers == "Referer: x\r\n"
 
 
 def test_backoff_doubles_1_2_4():
@@ -141,6 +141,46 @@ def test_ffmpeg_process_killed_on_reconnect():
     for _, _, proc in procs:
         assert proc.killed is True
         assert proc.waited is True
+
+
+def test_stderr_drain_torn_down_when_process_killed():
+    """WR-02: when a spawned process carries an attached stderr_drain, killing
+    it also tears the drain down so the drained pipe never leaks."""
+    from src.capture.supervisor import _kill_proc
+
+    drain = mock.Mock()
+    proc = mock.Mock()
+    proc.stderr_drain = drain  # as attached by spawn_ffmpeg
+    _kill_proc(proc)
+    drain.join.assert_called_once_with(timeout=1.0)
+    # A process WITHOUT a drain must not error.
+    _kill_proc(mock.Mock())
+
+
+def test_transport_error_does_not_kill_capture_loop():
+    """WR-01: a requests.ConnectionError on the auth/stream entry path must be
+    treated as a reconnect trigger, not propagate out and kill the capture
+    thread."""
+    import requests
+
+    mgr = _session_mgr()
+
+    def raising_mgr():
+        """stream_headers_and_url raises ConnectionError on the first call."""
+        calls = {"n": 0}
+        def _stream(camera_id, cam_url):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise requests.ConnectionError("network down (transient)")
+            return "u?token=tok", "Referer: x\r\n"
+        mgr.stream_headers_and_url.side_effect = _stream
+        return mgr
+
+    stop = FakeStopEvent(waits_before_stop=2)
+    frames, _, procs = _run_supervisor(lambda proc: None, raising_mgr(), stop)
+    # The loop survived the transport error and reconnected.
+    assert len(procs) >= 1
+    assert mgr.get_session.call_count >= 1
 
 
 def test_feed_frames_pushes_frames_into_buffer_tagged_with_camera_id():

@@ -22,6 +22,15 @@ REFERER = "https://privratnik.net/files/video-control.php"
 logger = logging.getLogger(__name__)
 
 
+class AuthExpiredError(Exception):
+    """Raised when the session/token is detected as expired or unextractable.
+
+    Defined here (rather than in ``supervisor``) because it is raised at the
+    point of token extraction/log-in where the failure is actually detected.
+    ``supervisor`` imports and catches it to drive the reconnect loop.
+    """
+
+
 def _redact_url(url):
     """Redact the ``token=`` query param and PHPSESSID from a URL for logging (V7)."""
     if not url:
@@ -111,11 +120,20 @@ class SessionManager:
         r.raise_for_status()
         token = _extract_token(r)
         if token is None:
-            # Log the raw response shape (redacted) for the probe to refine.
+            # Log only shape metadata, never the raw response body (T-01-03 —
+            # the body may echo a token/session; redact credential-like tokens
+            # before logging). The token extraction itself already reads this
+            # body, so exposing it in the log defeats the redaction requirement.
+            body = r.text or ""
             logger.warning(
-                "No token extracted from login response; status=%s body_shape=%r",
+                "No token extracted from login response; status=%s body_len=%d bodies=%d",
                 r.status_code,
-                (r.text or "")[:500],
+                len(body),
+                body.count("<"),
+            )
+            raise AuthExpiredError(
+                "login succeeded but no stream token was extractable "
+                f"(status={r.status_code})"
             )
         self._session = s
         self._token = token
@@ -127,19 +145,22 @@ class SessionManager:
         return self._session, self._token
 
     def stream_headers_and_url(self, camera_id, cam_url):
-        """Assemble the ffmpeg header args + full stream URL with live token (D-07).
+        """Assemble the ffmpeg header content + full stream URL with live token (D-07).
 
         The token is appended to the URL at request time and never stored
         embedded in the camera URL. Returns ``(url, headers)`` where ``headers``
-        is the list of ffmpeg ``-headers`` argument values.
+        is the **pure header content** (a single string of ``Name: value`` lines)
+        that the caller's ``build_ffmpeg_cmd`` feeds as the value of ffmpeg's
+        ``-headers`` option. This method does NOT return an argv element —
+        emitting the ``-headers`` flag is the single job of ``build_ffmpeg_cmd``,
+        so the two sides agree on one contract (no double ``-headers`` injection).
         """
         _, token = self.get_session()
         url = f"{cam_url}?token={token}"  # token appended at request time, not stored
-        headers = [
-            "-headers",
+        headers = (
             f"Referer: {REFERER}\r\n"
             f"Range: bytes=0-\r\n"
-            f"Cookie: PHPSESSID={self._session.cookies.get('PHPSESSID', '')}\r\n",
-        ]
+            f"Cookie: PHPSESSID={self._session.cookies.get('PHPSESSID', '')}\r\n"
+        )
         logger.debug("stream_headers_and_url camera=%s url=%s", camera_id, _redact_url(url))
         return url, headers
