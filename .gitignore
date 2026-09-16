@@ -13,3 +13,8 @@ __pycache__/
 
 # pytest cache
 .pytest_cache/
+
+# GSD runtime state (machine-local, not source)
+.gsd/
+.planning/milestone.lock
+.planning/state.json
