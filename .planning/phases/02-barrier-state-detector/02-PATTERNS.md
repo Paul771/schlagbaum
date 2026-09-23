@@ -458,7 +458,7 @@ def main():
 if __name__ == "__main__":
     main()
 ```
-Conventions: shebang, a docstring that says **MANUAL-ONLY** and states the precondition, `print()` is acceptable here (unlike `src/` modules), a single `main()` with `if __name__ == "__main__"`, and `sys.exit(code)` for pass/fail. `tools/roi_overlay.py` should read its inputs from **argv** (the VALIDATION map documents `python tools/roi_overlay.py --frame <still> --roi <json>`, `02-VALIDATION.md:83`) rather than env vars — so use `argparse`, which the codebase has not used before but which is stdlib and matches the "utility CLI" role.
+Conventions: shebang, a docstring that says **MANUAL-ONLY** and states the precondition, `print()` is acceptable here (unlike `src/` modules), a single `main()` with `if __name__ == "__main__"`, and `sys.exit(code)` for pass/fail. `tools/roi_overlay.py` should read its inputs from **argv** (the VALIDATION map documents `python -m tools.roi_overlay --frame <still> --roi <json>`, `02-VALIDATION.md:82`) rather than env vars — so use `argparse`, which the codebase has not used before but which is stdlib and matches the "utility CLI" role.
 
 **Core render pattern** (`02-RESEARCH.md:483-496`, verbatim — verified writing and reloading a PNG on this headless build):
 ```python
@@ -478,6 +478,8 @@ def write_roi_overlay(frame, band, sweep_poly, lane_y, out_path):
     cv2.imwrite(out_path, overlay)          # headless: PNG is the only review path
 ```
 **Hard constraint (Pitfall 6, `02-RESEARCH.md:326-331`):** `cv2.imshow` / `namedWindow` **do not exist** in `opencv-python-headless`. PNG export is the only viable path. Any GUI call is a crash.
+
+**Invocation (verified on this host):** because the tool imports `validate_roi`/`band_from_config` from `src.detect.barrier`, it must be run from the project root as `python -m tools.roi_overlay --frame <still> --roi <json>`. The direct form `python tools/roi_overlay.py` fails with `ModuleNotFoundError: No module named 'src'` — Python places the script's own directory (`tools/`), not the project root, first on `sys.path`. This is the one place the tool diverges from its analog: `scripts/probe_privratnik_auth.py` is runnable directly only because it imports no first-party modules. Resolve it with the `-m` form, not with a `sys.path` hack.
 
 **No automated test.** `scripts/probe_privratnik_auth.py` has no test module — the same applies here; it is verified by the operator looking at the PNG (`02-VALIDATION.md:83`).
 

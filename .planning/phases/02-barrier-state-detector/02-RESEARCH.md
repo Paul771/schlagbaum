@@ -607,24 +607,29 @@ All three are ≤0.9% of one core per camera at 1.5 fps, so the conclusion (abun
 | A5 | numpy's canonical repository is `github.com/numpy/numpy`. | Package Legitimacy Audit | **LOW.** Stated from training knowledge; the seam returned `no-repository` and did not confirm it. It does not affect the package approval, which rests on independent evidence. |
 | A6 | A boom barrier's open/close sweep takes ~4–6 s, so `confirm=2` at 1.5 fps (≈1.3 s) is comfortably fast enough. | Hysteresis Validation | **MEDIUM.** Derived from general knowledge of boom barriers, not measured. If the real barrier is much faster, the low `capture_fps=1.5` (a Phase 1 config default) may sample too sparsely and a full open/close cycle could span very few frames. Mitigation: this is observable directly in the SC4 recording; if the arm sweeps in <3 frames, raise `capture_fps`. |
 
-## Open Questions
+## Open Questions — 1–3 (RESOLVED), 4 (OPEN, deferred to the SC4 footage)
 
-1. **Is "partially open" (BARRIER-01) a reported state, or the derived intermediate?**
+> **Resolution status (machine-visible).** Questions 1–3 each carry a **(RESOLVED)** marker inline
+> below: their recommendations are acted on by the Phase 2 plans and are no longer outstanding.
+> Question 4 carries **(OPEN)** and is deliberately unanswerable before real footage exists; it is
+> carried as a first-class assumption with a named next step, not silently dropped.
+
+1. **(RESOLVED)** **Is "partially open" (BARRIER-01) a reported state, or the derived intermediate?**
    - What we know: `REQUIREMENTS.md` BARRIER-01 lists "открыт / закрыт / частично открыт"; SC3 and BARRIER-02 name the four-state sequence `CLOSED→OPENING→OPEN→CLOSING`.
    - What's unclear: whether a fifth `PARTIAL` state must be *reported*, or whether intermediate arm angles should be surfaced as a derived attribute (e.g. `is_partial: True` on a transition) while the FSM stays 4-state.
    - Recommendation: build the **4-state** FSM (SC3 is a hard acceptance criterion), and expose `closed_ratio` plus an `is_partial` flag on each reading so BARRIER-01's third case is satisfiable without a fifth state. Put this to the user in `/gsd-discuss-phase 2`.
 
-2. **Where do fixtures live, and are they committed?**
+2. **(RESOLVED)** **Where do fixtures live, and are they committed?**
    - What we know: SC4 requires validation against recorded real footage. Recorded clips are large binaries containing real gate imagery.
    - What's unclear: whether the repo (or the operator) should hold the real footage, and whether synthetic fixtures should be committed alongside it.
    - Recommendation: **commit synthetic fixtures** (tiny, generated deterministically by a seed — they are the regression net that runs in CI), and **gitignore the real recordings** under `fixtures/` (add to `.gitignore`), keeping them as a local acceptance artifact for SC4. This mirrors Phase 1's `.env` treatment: real material local, reproducible material committed.
 
-3. **What exactly must the operator record, and can they?**
+3. **(RESOLVED)** **What exactly must the operator record, and can they?**
    - What we know: live capture is blocked on this host, so the user must record footage manually. SC4 needs a genuine opening AND a car passing with the gate closed.
    - What's unclear: whether the user has a camera or phone that can see the gate, and at what frame rate.
    - Recommendation: ask for **two short clips per camera**: (a) a full genuine open→close cycle, (b) a car passing with the gate fully closed. Phone video at 30 fps is fine — the replay harness decouples fixture fps from `capture_fps`. Also request **one still frame per camera with the arm down** for ROI authoring, which is the single highest-value input. See the task list in Environment Availability.
 
-4. **Does `capture_fps=1.5` sample the arm sweep finely enough?**
+4. **(OPEN — deliberately unresolved; answerable only from SC4 footage)** **Does `capture_fps=1.5` sample the arm sweep finely enough?**
    - What we know: Phase 1 set `capture_fps=1.5` (a recorded decision, within a locked 1–2 fps range).
    - What's unclear: how many frames a real open/close sweep spans. At 1.5 fps a 5 s sweep is ~7 frames — workable with `confirm=2`, but not generous.
    - Recommendation: measure it from the SC4 recording before finalising `confirm`. If a sweep spans <4 frames, raise `capture_fps` toward 2.0 (still inside Phase 1's locked range) rather than reducing `confirm` below 2, since `confirm=1` removes the temporal debounce that SC2 relies on.
@@ -658,7 +663,7 @@ Baseline confirmed this session: **37 passed in 1.22s**.
 | BARRIER-04 | Light swing with gate CLOSED emits `[]` | unit | `pytest tests/test_barrier_fsm.py::test_light_swing_is_silent -x` | ❌ Wave 0 |
 | BARRIER-04 | Thresholds hold under severe degradation (JPEG+noise+blur+gradient) | integration | `pytest tests/test_barrier_detector.py::test_thresholds_survive_degradation -x` | ❌ Wave 0 |
 | BARRIER-04 | Fixture replay is deterministic (same clip ⇒ identical events) | integration | `pytest tests/test_replay.py::test_replay_is_deterministic -x` | ❌ Wave 0 |
-| SC4 | Detector runs over a **real** recorded clip without error (acceptance) | integration (skipped when footage absent) | `pytest tests/test_replay.py::test_real_footage_acceptance -x` | ❌ Wave 0 — `@pytest.mark.skipif` on missing `fixtures/` |
+| SC4 | Detector runs over a **real** recorded clip without error (acceptance) | integration (**runs, never skips**) | `pytest tests/test_replay.py::test_real_footage_acceptance -v` | ❌ Wave 0 — **no `@pytest.mark.skipif`**: absent footage is a visible, named failure. The only sanctioned pre-footage mechanism is an explicit `--deselect tests/test_replay.py::test_real_footage_acceptance` on the command line (plan 02-03, T-02-14). |
 | — | `FrameBuffer` replay does **not** hang (Pitfall 1 regression guard) | unit | `pytest tests/test_replay.py::test_bounded_buffer_replay_does_not_hang -x` | ❌ Wave 0 |
 
 ### Sampling Rate
@@ -669,7 +674,7 @@ Baseline confirmed this session: **37 passed in 1.22s**.
 
 ### Wave 0 Gaps
 
-- [ ] `src/detect/__init__.py` — new package
+- [ ] ~~`src/detect/__init__.py`~~ — **deliberately NOT created** (planner decision, 02-01): `src/capture/` has no marker file and `pythonpath = .` already makes `src.detect.*` importable. One package convention, not two.
 - [ ] `src/detect/barrier.py` — `closed_ratio` + `BarrierDetector` + optional `arm_angle`
 - [ ] `src/detect/fsm.py` — `BarrierFSM`
 - [ ] `src/detect/replay.py` — `ReplaySource`
@@ -680,7 +685,7 @@ Baseline confirmed this session: **37 passed in 1.22s**.
 - [ ] `tools/roi_overlay.py` — offline ROI PNG renderer (new)
 - [ ] `fixtures/` added to `.gitignore`; synthetic fixtures generated in a temp dir by the tests
 - [ ] **No framework install needed** — pytest 8.3.5 is present and configured.
-- [ ] **Consider adding `pytest-timeout`** to `requirements.txt`: Pitfall 1's failure mode is a *hang*, not a failure, and without a timeout a CI run blocks indefinitely. `[ASSUMED]` — this is a recommendation, and adding a package would require the legitimacy gate.
+- [ ] ~~**Consider adding `pytest-timeout`**~~ — **declined** (planner decision, 02-01): Pitfall 1's failure mode is a hang, and this phase guards it *structurally* — a timeout-carrying consumer `get` plus an explicit end-of-clip sentinel in `test_bounded_buffer_replay_does_not_hang` — instead of adding an `[ASSUMED]` test-only dependency that would need its own package-legitimacy checkpoint. `pytest.ini` carries the built-in `faulthandler_timeout = 30` as a *diagnostic* only (it dumps tracebacks; it does not abort).
 
 ## Security Domain
 
