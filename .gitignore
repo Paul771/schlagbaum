@@ -18,3 +18,5 @@ __pycache__/
 .gsd/
 .planning/milestone.lock
 .planning/state.json
+.planning/research/.cache/
+.planning/tmp/
