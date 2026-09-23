@@ -53,7 +53,12 @@ Plans:
   3. State transitions follow CLOSED→OPENING→OPEN→CLOSING without spurious duplicate transitions.
   4. Barrier detection is validated against recorded real footage of both a genuine opening and a car passing with the gate closed.
 
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — Tracer: synthetic clip → ReplaySource → closed_ratio → BarrierFSM transition, plus the signal layer and named failures
+- [ ] 02-02-PLAN.md — Four-state FSM with two-sided hysteresis, dead band, and edge-only emission; duplicate suppression and false-positive resistance
+- [ ] 02-03-PLAN.md — Degradation/determinism/deadlock hardening, ROI config surface with startup validation, and the user-gated SC4 real-footage acceptance test
 
 ### Phase 3: Event Store + Photo Store + Event Coordinator (FSM)
 
