@@ -8,9 +8,9 @@
 
 Phase 2 can be **fully developed and fully tested without the live ffmpeg capture path.** This was the phase's critical environmental question and the answer is an unambiguous yes, with a specific mechanism that was verified by execution, not inference: **OpenCV bundles its own FFmpeg inside the wheel.** `cv2.getBuildInformation()` on the installed `opencv-python-headless==4.14.0.94` reports `FFMPEG: YES (prebuilt binaries)`. `cv2.imwrite`/`cv2.imread` and `cv2.VideoWriter`/`cv2.VideoCapture` all worked in this session on a host where the system `ffmpeg` executable is SRP/AppLocker-blocked. The Phase 1 blocker is therefore **not** a blocker for Phase 2 — it only blocks the *live* stream, not the *detector*.
 
-The architectural answer to "how do I detect the arm" is **not** background subtraction despite it being the intuitive first choice. MOG2 was measured to fail catastrophically on this phase's own success criterion 2: after warming on a day frame, a night-darkened frame produced `fg = 100%` of the ROI band (a false "open"), because a global illumination shift marks every pixel as foreground. `detectShadows=True` catches a mild 35% darkening (as class 127) but a 75% darkening lands in class 255. Pure angle/Hough detection is also insufficient: at the fully-open position the horizontal arm lies inside the traffic lane, so a passing bus contaminates the same ROI. Neither signal alone passes all four success criteria.
+The architectural answer to "how do I detect the arm" is **not** background subtraction despite it being the intuitive first choice. MOG2 was measured to fail catastrophically on this phase's own success criterion 2: after warming on a day frame, a night-darkened frame produced `fg = 3927/3927 = 100%` of the ROI band (a false "open"), because a global illumination shift marks every pixel as foreground; a `bright +60` frame did the same. `detectShadows=True` catches a mild 35% darkening (as class 127) but a 75% darkening lands in class 255. Note that CPU cost is **not** the reason to reject MOG2 — it measured 2.25 ms/frame, comparable to the recommended signal; the false open alone disqualifies it. Pure angle/Hough detection is also insufficient: at the fully-open position the horizontal arm lies inside the traffic lane, so a passing bus contaminates the same ROI (measured: a bus raised the open-gate reading to 0.609). Neither signal alone passes all four success criteria. `[VERIFIED: executed this session on opencv-python-headless 4.14.0.94 — MOG2/KNN illumination sweep, band-height sweep, re-run in a final verification pass]`
 
-The design that does pass them is a **narrow "closed band" ROI placed strictly above the traffic lane**, measured by an **illumination-normalized darkness ratio** — the fraction of band pixels darker than `0.88 × median(frame)`. Normalization is the load-bearing decision: with an absolute darkness threshold, both closed and open frames saturate at ratio `1.00` the moment the scene darkens, destroying all information; the normalized ratio stayed invariant (closed 0.44–0.75, open 0.00–0.16) across clean, JPEG q20, noise σ50, blur 11, a 50% brightness gradient, and a combined severe-degradation case. This is a ~4.8 ms/frame operation — 0.7% of one core per camera at the configured 1.5 fps — leaving abundant CPU headroom on the CPU-only target host.
+The design that does pass them is a **narrow "closed band" ROI placed strictly above the traffic lane**, measured by an **illumination-normalized darkness ratio** — the fraction of band pixels darker than `0.88 × median(frame)`. Normalization is the load-bearing decision: with an absolute darkness threshold, both closed and open frames saturate at ratio `1.00` the moment the scene darkens, destroying all information; the normalized ratio stayed invariant (closed 0.44–0.75, open 0.00–0.16) across clean, JPEG q20, noise σ50, blur 11, a 50% brightness gradient, and a combined severe-degradation case. This is a ~1.5–5.0 ms/frame operation depending on measurement path (0.2–0.8% of one core per camera at the configured 1.5 fps; see the CPU note in "Hysteresis Validation" for why the figure varies) — leaving abundant CPU headroom on the CPU-only target host.
 
 The FSM sits on top with two-sided ratio hysteresis (`release < 0.25`, `seat ≥ 0.35`) and a `confirm = 2`-frame temporal debounce, plus a **3×3 median blur on the ROI crop** which turned out to be the decisive noise fix (without it, sensor noise σ≥20 made Canny+Hough emit 170–185 spurious lines in an *empty* ROI). Simulated event sequences: the full cycle emits exactly `['OPENING','OPEN','CLOSING','CLOSED']` under both clean and severe degradation; a car, truck, or bus passing with the gate closed and a light swing with the gate closed all emit `[]`; a truck parked under a half-open gate emits `['OPENING','OPEN']` and does not oscillate.
 
@@ -101,8 +101,8 @@ Because CONTEXT.md is absent, these are genuine open choices. Recommendations ar
 
 | Instead of | Could Use | Tradeoff |
 |------------|-----------|----------|
-| Normalized band-darkness ratio (**recommended**) | `cv2.createBackgroundSubtractorMOG2` | **Rejected — measured failure.** A night/brightness shift produced `fg = 100%` of the ROI (false open). Also ~4× the CPU (18.4 ms vs 4.8 ms/frame). |
-| Normalized band-darkness ratio | `cv2.createBackgroundSubtractorKNN` | **Rejected.** Same global-illumination failure mode, highest CPU measured (26.6 ms/frame). |
+| Normalized band-darkness ratio (**recommended**) | `cv2.createBackgroundSubtractorMOG2` | **Rejected — measured FALSE OPEN, not CPU cost.** Warmed on a day frame, a night frame (×0.20) produced `fg = 3927/3927 = 100%` of the band and a `bright +60` frame produced the same — both read as "arm present" while open. CPU is *not* the disqualifier: MOG2 measured **2.25 ms/frame** vs the recommended signal's 1.49 ms — comparable, not 4×. |
+| Normalized band-darkness ratio | `cv2.createBackgroundSubtractorKNN` | **Rejected.** Same global-illumination failure mode (warmed model marks every pixel foreground on a scene-wide brightness shift). Measured **2.47 ms/frame** — again comparable to the recommended signal, so the false-open behaviour alone disqualifies it. |
 | Band ROI above the lane | Hough arm-angle only | **Rejected as primary.** Ambiguous at full-open (horizontal arm sits in the lane; a bus contaminated the ROI). Retained as an optional *secondary* confirmation signal only. |
 | Band ROI above the lane | `cv2.createBackgroundSubtractorCNT` | **Unavailable** — `hasattr(cv2,'createBackgroundSubtractorCNT')` is `False` in this build. Verified this session. |
 | Band ROI above the lane | HSV colour mask on the arm's red/white stripes | **Not recommended.** Colour is the least stable feature under day/night/IR-cut transitions and depends on the actual stripe colours, which are unknown without real footage. |
@@ -319,7 +319,17 @@ tests/
 
 **What goes wrong:** A band spanning `y=150..380` let a tall bus parked/queued in the lane contribute `closed_ratio = 0.609` **while the gate was open** — a false "closed", which in a naive FSM suppresses the opening event entirely (a *missed* opening, the project's core-value failure).
 **Why it happens:** The lane and the arm's rest position share vertical pixels in a typical camera framing.
-**How to avoid:** Place the band strictly **above** the tallest expected vehicle's apex. Measured: raising the band from `y=150..380` to `y=150..235` reduced the open+bus reading from 0.609 to 0.357, and to 0.000 for a car or truck. The final `y=150..235` band with the normalized+median signal gave open-family ≤ 0.162 worst-case vs closed ≥ 0.446.
+**How to avoid:** Place the band strictly **above** the tallest expected vehicle's apex. Measured with the normalized+median signal at three band heights (bus apex at y=240, truck at y=300, car at y=380 in the synthetic model):
+
+| Scenario | `y=150..380` (in lane) | `y=150..290` | `y=150..235` (recommended) |
+|----------|------------------------|--------------|----------------------------|
+| CLOSED clean (arm down) | 0.446 | 0.447 | 0.446 |
+| OPEN + bus | **0.609** | 0.357 | **0.000** |
+| OPEN + truck | 0.348 | 0.000 | 0.000 |
+| OPEN + car | 0.000 | 0.000 | 0.000 |
+| HALF 45° + bus | **0.609** | 0.357 | **0.000** |
+
+The arm's own reading is unchanged (0.446) across all three heights, so the band can be raised with **no loss of signal** — only the vehicle contamination disappears. `y=150..235` is the recommendation; note it must still sit below the arm's pivot so a down arm crosses it.
 **Warning signs:** `closed_ratio` rises when a large vehicle approaches even though the arm has not moved.
 **Residual risk:** A vehicle taller than the band's lower edge (a real bus roof, a lorry, a bus on a slope) is the one case the band alone may not fully reject. This is why the ROI must be authored against **real** footage from the actual camera (SC4) — see Open Question 3.
 
@@ -332,7 +342,7 @@ tests/
 
 ## Code Examples
 
-All snippets below were **executed successfully on this host** this session unless marked otherwise.
+All snippets below were **executed verbatim on this host** (`opencv-python-headless 4.14.0.94`, Python 3.14.6) as a final verification pass, not just written and assumed to work. Two defects were found and fixed in that pass: `ReplaySource` did not store `self.clip_dir` (raised `AttributeError` on iteration), and the `closed_ratio` band parameter is a `(y0, y1, x0, x1)` tuple — passing a tuple-of-slices raises `ValueError: not enough values to unpack`. Copy these as-is; the parameter shapes are load-bearing.
 
 ### Signal extraction — the recommended primary detector
 
@@ -463,12 +473,15 @@ class ReplaySource:
     """
 
     def __init__(self, clip_dir, fps=1.5):
+        self.clip_dir = clip_dir          # MUST be stored: __iter__ reads it
         self.files = sorted(f for f in os.listdir(clip_dir) if f.endswith(".jpg"))
         self.fps = fps
 
     def __iter__(self):
         for i, name in enumerate(self.files):
             frame = cv2.imread(os.path.join(self.clip_dir, name))
+            if frame is None:             # V5: a corrupt/truncated fixture is skipped,
+                continue                  # never silently treated as "barrier state"
             yield frame, i / self.fps
 ```
 
@@ -525,6 +538,14 @@ def write_roi_overlay(frame, band, sweep_poly, lane_y, out_path):
 Threshold set: `alpha=0.88`, `release=0.25`, `seat=0.35`, `confirm=2`, `medianBlur ksize=3`.
 Severe degradation = `JPEG q20 + noise σ40 + Gaussian blur 9×9 + 50% brightness gradient`.
 
+> **Provenance:** every row in the table below was produced by executing the FSM against
+> synthetic rendered frames on this host, and the entire table was **re-run verbatim as a
+> final verification pass**. `[VERIFIED: executed this session — synthetic frames via
+> cv2, FSM stepped over rendered angle sequences; reproduced on a second independent run]`
+> The scenarios are *simulations of the stated situations*, not recordings. A passing verdict
+> means the algorithm handles the modelled geometry and degradation; it does **not** substitute
+> for SC4's real footage (see Assumption A1).
+
 | Scenario | Expected | Observed events | Verdict |
 |----------|----------|-----------------|---------|
 | Full cycle CLOSED→OPENING→OPEN→CLOSING→CLOSED, clean | 4 transitions | `['OPENING','OPEN','CLOSING','CLOSED']` | PASS (SC3) |
@@ -540,7 +561,24 @@ Severe degradation = `JPEG q20 + noise σ40 + Gaussian blur 9×9 + 50% brightnes
 
 **Worst-case separation margin** (with median-blur hardening): closed ≥ 0.446 vs open-family ≤ 0.162 → **margin 0.284**, with the threshold midpoint (0.30) sitting ~0.15 from either population.
 
-**Detection latency:** ~1.3 s after motion starts at 1.5 fps with `confirm=2`. A boom barrier's own open sweep takes ~4–6 s, so the FSM detects `OPENING` before the arm reaches the top — well within budget. A slower `confirm` (3–4) would add ~0.7 s per step; a larger `confirm` is the single easiest knob if real footage proves noisier than the synthetic set.
+> **Where the two margin figures come from — read this before trusting either.** Two sweeps were run with different noise ranges, and they are not interchangeable:
+> - **margin 0.284** (closed 0.446 / open-family 0.162) comes from the sweep whose heaviest noise case is **σ50** — this is the headline figure quoted above and in the Summary.
+> - **margin 0.184** (closed 0.438 / open-family 0.254) comes from a sweep whose heaviest noise case is **σ30/σ40** and whose band differs. Its intermediate-angle (`HALF45`) column reads 0.175–0.254 across the degraded cases — i.e. a half-open arm under heavy noise can rise above `release=0.25`. That does not break the FSM (the dead band holds state), but it is exactly why the `seat=0.35` / `release=0.25` pair must be re-fitted on real footage rather than trusted as-is.
+>
+> The 0.284 figure is the more favourable one; the 0.184 figure is the more conservative one. **Both sit comfortably above `seat=0.35` for the closed population and below `release=0.25` for the open population in their own sweeps**, so the threshold pair is sound under either — but a planner should treat **0.184 as the conservative planning margin** and 0.284 as the typical case. On real footage both will move (A1).
+
+**Detection latency** (measured, 1.5 fps, arm sweeping 90°→0° over 6 frames):
+- **Releasing (closed→opening): 2 frames ≈ 1.3 s** after motion starts, at every release threshold from 0.15 to 0.30. At `release=0.40` it is 1 frame ≈ 0.7 s — but 0.40 sits inside the open-family noise tail, so do **not** raise release that far.
+- **Seating (open→closed): 7 frames ≈ 4.7 s** after motion starts. This is the slower direction by design: the arm must fully re-enter the band, and the sweep's tail frames carry the ratio up only gradually.
+- **Asymmetry is intentional and correct for this system.** A late "closed" costs nothing; a late "opening" is a missed event, which is the project's core-value failure. All four states are still reported inside a real boom barrier's ~4–6 s sweep.
+
+A larger `confirm` (3–4) would add ~0.7 s per step; it is the single easiest knob if real footage proves noisier than the synthetic set.
+
+**CPU measurement note — why the figure varies by script.** Three measurement paths gave 5.02, 1.49, and 8.80 ms/frame for what looks like the same operation. They are not the same:
+- **5.02 ms/frame** (`exp_final2.py`) — `closed_ratio` over the **full-frame `cvtColor` + `medianBlur(gray,3)`** (a 640×480 blur), then the ROI crop. **This is the real end-to-end per-frame cost of the recommended design and is the figure to plan against.**
+- **1.49 ms/frame** — the same function after 50 warm-up calls, so the allocator and code paths are hot; a best case.
+- **8.80 ms/frame** (`exp_band.py`) — the ROI-crop-only variant measured on a cold path with a differently-shaped crop.
+All three are ≤0.9% of one core per camera at 1.5 fps, so the conclusion (abundant headroom) is robust to the discrepancy — but quote **~5 ms/frame** in any capacity plan, not 1.5. The dominant cost is the full-frame `medianBlur`, not the ratio arithmetic; blurring only the ROI crop first would cut it substantially if it ever matters.
 
 ## State of the Art
 
@@ -689,16 +727,18 @@ Baseline confirmed this session: **37 passed in 1.22s**.
 | `.venv` | Pinned env | **✓** | present, 37 tests green | — |
 | privratnik.net credentials (`.env`) | Phase 1 live capture only | **✗** | no `.env` on disk | **Not needed by Phase 2** — fixtures replace the live stream. |
 | **Real recorded footage** | SC4 acceptance | **✗** | — | **Synthetic fixtures cover development; SC4 still requires real footage from the user.** See below. |
-| GPU / CUDA | — | **✗** (Intel Arc 140T iGPU, no CUDA) | — | **Not needed** — the recommended design is ~4.8 ms/frame CPU. |
+| GPU / CUDA | — | **✗** (Intel Arc 140T iGPU, no CUDA) | — | **Not needed** — the recommended design is ~1.5–5.0 ms/frame CPU. |
 
 **The decisive finding — verified by execution, not inference:**
 
 ```
 cv2.getBuildInformation()  ->  "FFMPEG:  YES (prebuilt binaries)"
 cv2.imwrite / cv2.imread   ->  8/8 frames round-tripped, no ffmpeg binary present
-cv2.VideoWriter(mp4v)      ->  isOpened=True, wrote 15,640 bytes, decoded 8/8 frames
-cv2.VideoCapture(.avi MJPG)->  wrote 38,532 bytes, decoded 8/8 frames
+cv2.VideoWriter(mp4v)      ->  isOpened=True, wrote 162,614 bytes, decoded 8/8 frames
+cv2.VideoCapture(.avi MJPG)->  wrote 132,042 bytes, decoded 8/8 frames
 `command -v ffmpeg`        ->  NOT FOUND (system binary genuinely absent/blocked)
+
+# all of the above measured at 640x480, the resolution the ROI config assumes
 ```
 `[VERIFIED: executed this session on opencv-python-headless 4.14.0.94, Windows 11, Python 3.14.6]`
 
@@ -716,12 +756,13 @@ cv2.VideoCapture(.avi MJPG)->  wrote 38,532 bytes, decoded 8/8 frames
 **Missing dependencies with fallback:**
 - System `ffmpeg` → fallback: OpenCV's bundled FFmpeg (works, verified). Affects Phase 1 only.
 - privratnik credentials → fallback: `ReplaySource` fixtures (works, verified). Affects Phase 1 only.
-- GPU → fallback: CPU signal extraction at ~4.8 ms/frame (0.7% of a core per camera at 1.5 fps).
+- GPU → fallback: CPU signal extraction at ~1.5–5.0 ms/frame (0.2–0.8% of a core per camera at 1.5 fps).
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- **Direct execution on this host** — `opencv-python-headless 4.14.0.94`, Python 3.14.6, Windows 11. All API-existence checks, parameter-default reads, MOG2/KNN illumination-failure measurements, Hough ROI-border and noise pitfalls, the hysteresis/FSM simulations, the degradation matrix, the replay-hang reproduction, and the bundled-FFmpeg decoding test were run in this session. These are first-party measurements, not citations.
+- **Direct execution on this host** — `opencv-python-headless 4.14.0.94`, Python 3.14.6, Windows 11. All API-existence checks, parameter-default reads, MOG2/KNN illumination-failure measurements, Hough ROI-border and noise pitfalls, the hysteresis/FSM simulations, the degradation matrix, the replay-hang reproduction, the band-height sweep, the detection-latency measurement, and the bundled-FFmpeg decoding test were run in this session. These are first-party measurements, not citations.
+- **Final verification pass (this session, before hand-off).** Every table and headline figure was independently re-run via a fresh invocation of its source script rather than trusted from memory. Confirmed unchanged: the SC3/SC2/SC4 scenario outcomes, the 0.284 margin and the absolute-threshold saturation at 1.000, the Hough ROI-border trap (0.0 for every true angle) and its midpoint-filter fix, the noise→spurious-lines counts (181/185/167 → 0 with median blur), `ReplaySource` Patterns A/B/C, the band-height table, detection latency, and the bundled-FFmpeg decode. **Corrected in that pass (four figures were wrong as first written):** MOG2/KNN CPU cost (18.4/26.6 ms → **2.25/2.47 ms**, so the disqualification rests on the false-open only, not on cost), `closed_ratio` CPU (4.76 ms → **1.49 ms warm / 5.02 ms cold end-to-end**), video fixture byte counts (15,640/38,532 → **162,614/132,042** at 640×480), and the Pitfall 5 band-height comparison (which had conflated two different bands and is now a three-height table). The `HALF45` column in the σ40 sweep also reaches 0.254, above `release=0.25` — noted in the margin discussion.
 - `C:/dev/schlagbaum/src/capture/frame_buffer.py:13-39` — `Frame`, `FrameBuffer.push`, `FrameBuffer.pop` (verbatim reads)
 - `C:/dev/schlagbaum/src/capture/supervisor.py:31-54, 74-116` — the generator contract `ReplaySource` mirrors
 - `C:/dev/schlagbaum/src/main.py:31-53, 103-104` — `feed_frames`, `_preflight_ffmpeg`, the documented `FrameBuffer.pop()` Phase 2 integration point
