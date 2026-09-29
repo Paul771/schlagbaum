@@ -22,7 +22,7 @@ covered_files:
   - .env.example
   - requirements.txt
   - pytest.ini
-covered_digest: "v1:sha256:dfe5f92c2c68d7c05105a4410135a9901b556ef18a096e9322fe094f1770e5d4"
+covered_digest: "v1:sha256:acdee4613a40d19c511d463a9cb448c6303c7c6429ebe1cf15f9bf563b4d2499"
 behavior_unverified: 2 # truths present + wired but behavior not exercised against real stream
 overrides_applied: 1
 overrides:
