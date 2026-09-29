@@ -1,8 +1,8 @@
 ---
 phase: 01-stream-client-frame-buffer
-verified: 2026-09-16T00:00:00Z
-status: gaps_found
-score: 4/7 must-haves verified
+verified: 2026-09-29T00:00:00Z
+status: passed
+score: 7/7 must-haves verified # 4 VERIFIED + 2 behavior-unverified-carried + 1 PASSED (override)
 covered_files:
   - .planning/phases/01-stream-client-frame-buffer/01-01-PLAN.md
   - .planning/phases/01-stream-client-frame-buffer/01-02-PLAN.md
@@ -24,19 +24,24 @@ covered_files:
   - pytest.ini
 covered_digest: "v1:sha256:dfe5f92c2c68d7c05105a4410135a9901b556ef18a096e9322fe094f1770e5d4"
 behavior_unverified: 2 # truths present + wired but behavior not exercised against real stream
-overrides_applied: 0
+overrides_applied: 1
+overrides:
+  - must_have: "The auth flow is validated against the real stream via a manual probe script before the full pipeline is trusted"
+    reason: "Accepted so Phase 02 (which is explicitly designed to need no live stream, no credentials and no ffmpeg binary) can proceed. The deviation was NOT descoped — it is externally blocked: the WinGet-installed ffmpeg 9.0.1 is unlaunchable on this host (CreateProcess -> WinError 1260 ERROR_ACCESS_DISABLED_BY_POLICY, reproduced via cmd, PowerShell Start-Process and Python subprocess), so no process on this machine may start it, probe included. No real PRIVRATNIK_LOGIN/PRIVRATNIK_PASSWORD exist yet. The code work itself is complete and green (37/37 tests, all 5 review findings fixed); only the live probe is outstanding. The override covers ROUTING only — the two behavior_unverified items and all three human_verification items remain in force and MUST be discharged before any phase consumes the real capture path."
+    accepted_by: "Pavel Vanyushkin"
+    accepted_at: "2026-09-29T00:00:00Z"
 re_verification: false
 gaps:
   - truth: "The auth flow is validated against the real stream via a manual probe script before the full pipeline is trusted"
-    status: failed
-    reason: "scripts/probe_privratnik_auth.py exists and compiles, but was NEVER RUN. No PRIVRATNIK_LOGIN/PRIVRATNIK_PASSWORD credentials were available and no .env file exists, so the A1 (login/token) and A3 (MJPG pipe-framing) contracts remain [ASSUMED] and unvalidated. This is the phase's own declared must-have truth."
+    status: override
+    reason: "scripts/probe_privratnik_auth.py exists and compiles (py_compile passes) but has NEVER RUN. No PRIVRATNIK_LOGIN/PRIVRATNIK_PASSWORD credentials exist and no .env is present, so the A1 (login/token) and A3 (MJPG pipe-framing) contracts remain [ASSUMED]. Re-confirmed 2026-09-29: ffmpeg 9.0.1 IS installed via WinGet at ...\\Gyan.FFmpeg_...\\ffmpeg-9.0.1-full_build\\bin\\ffmpeg.exe and IS on PATH, but CreateProcess on it fails with WinError 1260 ERROR_ACCESS_DISABLED_BY_POLICY, reproduced through cmd, PowerShell Start-Process, and Python subprocess.run — i.e. a host software-restriction policy, not a missing install. The probe therefore cannot run on this machine by any route. Override accepted to unblock Phase 02 routing only."
     artifacts:
       - path: "scripts/probe_privratnik_auth.py"
-        issue: "Probe built and compiles (py_compile passes) but was never executed against the real privratnik.net stream; no credentials present"
+        issue: "Probe built and compiles (py_compile passes) but was never executed against the real privratnik.net stream"
     missing:
       - "User-supplied PRIVRATNIK_LOGIN/PRIVRATNIK_PASSWORD in a gitignored .env"
-      - "ffmpeg installed on the host (not on PATH) so the decode path can run end-to-end"
-      - "Execution of scripts/probe_privratnik_auth.py and confirmation of a PASS summary before Phase 2 may consume the capture path"
+      - "Host policy permitting execution of the WinGet ffmpeg binary (WinError 1260 on CreateProcess), or an alternative ffmpeg the policy allows"
+      - "Execution of scripts/probe_privratnik_auth.py and confirmation of a PASS summary before any phase consumes the capture path"
 behavior_unverified_items:
   - truth: "The system authenticates to privratnik.net via requests.Session, persisting the PHPSESSID cookie and obtaining a token"
     test: "Run scripts/probe_privratnik_auth.py against the real stream with a valid .env; observe Step 1 login status, Step 2 token extraction, Step 4 ffmpeg frame production"
@@ -60,7 +65,7 @@ human_verification:
 **Phase Goal:** Two cameras capture continuous frames through the privratnik.net proxy with working auth, an auto-reconnect/re-auth loop, a bounded drop-oldest queue that keeps capture non-blocking, and a config/secrets structure feeding the first token.
 
 **Verified:** 2026-09-16
-**Status:** gaps_found
+**Status:** passed (1 override applied — see `overrides:` in frontmatter)
 **Re-verification:** No — initial verification
 **Mode:** mvp. The ROADMAP phase goal is not expressed in the canonical User Story format (`As a …, I want to …, so that …`), so the MVP user-flow coverage table is not applicable; verification uses the standard goal-backward observable-truths method, which the non-formatted capability goal supports directly.
 
@@ -82,7 +87,7 @@ However, the phase's **own declared must-have** — that the privratnik auth flo
 | 4   | Supervisor detects "no valid frame for N sec", tears down ffmpeg, re-auths, reconnects with exponential backoff; not killed by transient transport/auth errors; interruptible wait | ✓ VERIFIED | `supervisor.py` stale-detect via reader thread + `clock()`; `except (StreamStaleError, AuthExpiredError, requests.RequestException, OSError)` (WR-01 fix real); `stop_event.wait(backoff)` (no `time.sleep`, grep count 0); backoff 1→2→…→max, resets on healthy frame; `_kill_proc` + stderr drain teardown (WR-02). Tests: `test_supervisor_reauths_and_reconnects_on_stale_stream`, `test_backoff_doubles_1_2_4`, `test_backoff_resets_on_healthy_frame`, `test_backoff_caps_at_max`, `test_transport_error_does_not_kill_capture_loop`, `test_uses_stop_event_wait_not_time_sleep`, `test_ffmpeg_process_killed_on_reconnect`, `test_stderr_drain_torn_down_when_process_killed`. State transitions exercised via injected fake clock/read_frame |
 | 5   | System authenticates to privratnik.net via requests.Session, persisting PHPSESSID cookie and obtaining a token | ⚠️ PRESENT_BEHAVIOR_UNVERIFIED | `auth.py` login() does a real `requests.Session().post` + best-effort `_extract_token` + raises `AuthExpiredError` on absent token (WR-04 fix real); shape-only logging on failure (WR-03 fix real). Tests mock `requests` entirely — the real A1 login/token contract is `[ASSUMED]` and never exercised. Mocked test passes: `test_login_sets_phpsessid_cookie_and_returns_token`. See Human Verification item 1 |
 | 6   | Both cameras deliver a continuous frame stream without manual intervention (SC1) | ⚠️ PRESENT_BEHAVIOR_UNVERIFIED | `main.py` wires 2 threads + `feed_frames` + ffmpeg pre-flight; `spawn_ffmpeg`/`read_jpeg_frame` implement the A3 MJPG byte-buffer framing. But ffmpeg is **not on PATH** on this host and decode runs only against mocked `subprocess.Popen` + synthetic JPEGs. Real decode of an actual stream is never proven. See Human Verification item 2 |
-| 7   | The auth flow is validated against the real stream via a manual probe script before the full pipeline is trusted | ✗ FAILED | `scripts/probe_privratnik_auth.py` exists and compiles (py_compile passes), but was **never run** — no `.env`, no creds, no ffmpeg. The A1/A3 `[ASSUMED]` contracts remain unvalidated. This is the plan's own `must_haves.truths` item and roadmap SC2's "verified against the real stream, not just docs" clause. Outstanding |
+| 7   | The auth flow is validated against the real stream via a manual probe script before the full pipeline is trusted | ⚡ PASSED (override) | Override accepted 2026-09-29 by Pavel Vanyushkin — live probe is externally blocked (WinError 1260 on the ffmpeg binary; no credentials), not descoped. Probe exists and compiles; never run. See `overrides:` in frontmatter. **Routing override only — see Human Verification below.** |
 
 **Score:** 4/7 truths verified (2 present, behavior-unverified; 1 failed)
 
@@ -196,9 +201,11 @@ The following require the real environment (user credentials, network access to 
 
 ## Gaps Summary
 
-The phase's architecture is complete, logically sound, and fully mocked-tested — but the phase goal is **not met as declared** because its own verification gate is outstanding:
+The phase's architecture is complete, logically sound, and fully mocked-tested. Its one outstanding verification gate is an **accepted override**, not a defect:
 
-1. **BLOCKER — Auth flow not validated against the real stream.** The plan's `must_haves.truths` explicitly requires: *"The auth flow is validated against the real stream via a manual probe script before the full pipeline is trusted."* `scripts/probe_privratnik_auth.py` was never run (no `.env`, no credentials, ffmpeg absent). The A1 (login/token) and A3 (MJPG pipe-framing) contracts remain `[ASSUMED]`. Until a human runs the probe against a live stream and confirms PASS, the capture path cannot be trusted as "working auth" — and the roadmap SC2 clause "verified against the real stream, not just docs" is unmet. This is the sole FAILED truth driving `gaps_found`.
+1. **Auth flow not validated against the real stream — OVERRIDE ACCEPTED 2026-09-29.** The plan's `must_haves.truths` explicitly requires: *"The auth flow is validated against the real stream via a manual probe script before the full pipeline is trusted."* `scripts/probe_privratnik_auth.py` has never run: no `.env`, no credentials, and — re-confirmed this session — the WinGet ffmpeg binary is installed and on PATH but unlaunchable (CreateProcess → WinError 1260 `ERROR_ACCESS_DISABLED_BY_POLICY`, reproduced via cmd, PowerShell and Python). No process on this host can start ffmpeg, so the probe is unreachable by any route available to the agent. Pavel Vanyushkin accepted the override to unblock Phase 02, which is explicitly planned to require no live stream, no credentials and no ffmpeg binary. The A1 (login/token) and A3 (MJPG pipe-framing) contracts remain `[ASSUMED]`.
+
+**This override is scoped to ROUTING.** It changes the phase's advancement status; it does **not** certify the capture path. All three human_verification items below remain outstanding and MUST be discharged before any later phase — Phase 3's event store or anything downstream — consumes the real capture path.
 
 This is a **human/user-gated** gap — it cannot be closed by code in this environment. The correct path to close it: install ffmpeg, populate a gitignored `.env` with real credentials, run the probe, and confirm PASS. Only then may Phase 2 build trust on this capture path.
 
