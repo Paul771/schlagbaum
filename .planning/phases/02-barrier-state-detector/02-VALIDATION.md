@@ -43,7 +43,8 @@ created: 2026-10-04
 | 02-01-03 | 01 | 1 | BARRIER-01, BARRIER-04 | unit (synthetic) | `.venv/Scripts/python -m pytest tests/ -q` | ✅ | ⬜ pending |
 | 02-02-01 | 02 | 2 | BARRIER-01 | integration | `python -m scripts.build_references.py` | ❌ W0 (needs recordings) | ⬜ pending |
 | 02-02-02 | 02 | 2 | BARRIER-01 | unit + integration | `.venv/Scripts/python -m pytest tests/test_detect_consumer.py -x` | ❌ W0 | ⬜ pending |
-| 02-02-03 | 02 | 2 | BARRIER-04 (SC #2, SC #4) | e2e replay | `python -m scripts.validate_barrier.py` | ❌ W0 (needs recordings) | ⬜ pending |
+| 02-02-03 | 02 | 2 | BARRIER-04 (SC #2, SC #4) | e2e replay | `.venv/Scripts/python -m scripts.validate_barrier.py` | ❌ W0 (needs recordings) | ⬜ pending |
+| 02-02-04 | 02 | 2 | BARRIER-01, BARRIER-04 | regression (real fixtures) | `.venv/Scripts/python -m pytest tests/test_barrier_fixtures.py -x` | ❌ W0 (needs fixtures from task 02-02-01) | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
