@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-10-04)
 ## Current Position
 
 Phase: 2 of 6 (Barrier State Detector)
-Plan: 0 of 2 planned
-Status: Planned — 02-01 ready to execute; 02-02 blocked on a real recording session
-Last activity: 2026-10-04 — Phase 02 context, research, validation strategy and 2 plans created
+Plan: 1 of 2 — 02-01 in progress (task 3 of 3)
+Status: Executing — tasks 1-2 committed; task 3 has 2 failing tests, see `.continue-here.md`
+Last activity: 2026-10-04 — executing 02-01; FSM + classifier committed, synthetic fixture work in progress
 
 Progress: [████████████████████] 2/2 plans (100%)
 
