@@ -6,7 +6,7 @@ A local barrier-gate video analytics system. It fetches frames from two IP camer
 
 ## Phases
 
-- [ ] **Phase 1: Stream Client + Frame Buffer** - Two-camera frame capture via privratnik.net with auth, bounded queue, supervise/reconnect loop, config/secrets
+- [x] **Phase 1: Stream Client + Frame Buffer** - Two-camera frame capture via privratnik.net with auth, bounded queue, supervise/reconnect loop, config/secrets
 - [ ] **Phase 2: Barrier State Detector** - Reliable open/closed/partial detection with ROI+hysteresis and false-positive resistance
 - [ ] **Phase 3: Event Store + Photo Store + Event Coordinator (FSM)** - Persist one event per barrier opening with photo evidence; FSM emits exactly one event; dedup
 - [ ] **Phase 4: Vehicle Detector** - Detect cars to gate OCR calls and select the best frame
@@ -122,7 +122,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Stream Client + Frame Buffer | 2/2 | In Progress|  |
+| 1. Stream Client + Frame Buffer | 2/2 | Complete | 2026-10-04 |
 | 2. Barrier State Detector | 0/TBD | Not started | - |
 | 3. Event Store + Photo Store + Event Coordinator (FSM) | 0/TBD | Not started | - |
 | 4. Vehicle Detector | 0/TBD | Not started | - |

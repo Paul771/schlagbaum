@@ -1,16 +1,14 @@
 ---
-gsd_state_version: "1.0"
-current_phase: 01
-current_phase_name: Stream Client + Frame Buffer
-status: verifying
-stopped_at: Completed 01-02-PLAN.md
-last_updated: "2026-09-10T13:05:12.134Z"
-last_activity: 2026-09-10
-last_activity_desc: Phase 01 execution started
-state_head: ac1aa841745efce800cfc51834e838b6df46fbae
+gsd_state_version: 1.0
+milestone: v1.0
+milestone_name: milestone
+status: planning
+stopped_at: Phase 01 complete; ready to plan Phase 2
+last_updated: "2026-10-04T21:23:46.000Z"
+last_activity: 2026-10-04
 progress:
   total_phases: 6
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 2
   completed_plans: 2
   percent: 0
@@ -20,38 +18,38 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-09-09)
+See: .planning/PROJECT.md (updated 2026-10-04)
 
 **Core value:** Надёжно фиксировать каждое открытие шлагбаума и распознавать номер проезжающего автомобиля, сохраняя событие с фото в локальную базу — без пропусков и без ручного вмешательства.
-**Current focus:** Phase 01 — Stream Client + Frame Buffer
+**Current focus:** Phase 2 — Barrier State Detector
 
 ## Current Position
 
-Phase: 01 (Stream Client + Frame Buffer) — EXECUTING
-Plan: 2 of 2
-Status: Phase complete — ready for verification
-Last activity: 2026-09-10 — Phase 01 execution started
+Phase: 2 of 6 (Barrier State Detector)
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-10-04 — Phase 01 verified (UAT 6/6) and completed
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [████████████████████] 2/2 plans (100%)
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 0
-- Average duration: —
-- Total execution time: —
+- Total plans completed: 2
+- Average duration: 15 min
+- Total execution time: 0.5 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| - | - | - | - |
+| 1. Stream Client + Frame Buffer | 2/2 | 30 min | 15 min |
 
 **Recent Trend:**
 
-- Last 5 plans: —
-- Trend: —
+- Last 5 plans: 10m, 20m
+- Trend: Stable
 
 *Updated after each plan completion*
 **Per-Plan Metrics:**
@@ -68,14 +66,11 @@ Progress: [░░░░░░░░░░] 0%
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
-- [Phase 1]: Highest-risk unknown = privratnik.net proxy auth/reconnect (token+PHPSESSID+Referer). Must be empirically validated before anything builds on it.
+- [Phase 1]: Highest-risk unknown (privratnik.net proxy auth/reconnect) is live-validated — probe PASS, 2-camera capture, re-auth recovery; UAT 6/6.
 - [Phase 1]: Bounded drop-oldest queue decouples capture from slower analysis; capture never blocks.
+- [Phase 1]: SessionManager interface is login()/get_session()/stream_headers_and_url() — no live_headers()/invalidate(); supervisor uses a reader thread + frame_stale_seconds to detect silent stream death.
 - [Phase 3]: SQLite event store with photos as files on disk (paths in DB, not BLOBs); FSM must exist before persistence to avoid duplicate events.
-- [Phase 4]: Vehicle detection gates OCR calls (cost/rate-limit control) and precedes Plate Recognizer.
 - [Phase 5]: External ALPR provider choice (Plate Recognizer vs OpenALPR vs Google Vision) is UNVERIFIED — re-verify pricing/RU-accuracy before committing in planning.
-- [Phase 01]: queue_size=15, capture_fps=1.5, frame_stale_seconds=12, backoff_max=60.0 as config defaults (Claude's discretion within locked ranges)
-- [Phase 01]: SessionManager interface is login()/get_session()/stream_headers_and_url(camera_id, cam_url) — no live_headers()/invalidate()
-- [Phase 01]: Supervisor uses a reader thread + queue so silent stream death is detected via frame_stale_seconds without blocking on a hung pipe
 
 ### Pending Todos
 
@@ -87,7 +82,6 @@ None yet.
 
 [Issues that affect future work]
 
-- [Phase 1] privratnik.net auth/reconnect behavior unverified empirically — needs real-stream validation.
 - [Phase 5] External OCR provider pricing/accuracy/maintenance unverified — re-verify before provider commit.
 
 ## Deferred Items
@@ -100,6 +94,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-09-10T13:05:12.103Z
-Stopped at: Completed 01-02-PLAN.md
+Last session: 2026-10-04T21:23:46
+Stopped at: Phase 01 complete, ready to plan Phase 2
 Resume file: None

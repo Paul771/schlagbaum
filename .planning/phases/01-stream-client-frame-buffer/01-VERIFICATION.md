@@ -39,7 +39,7 @@ covered_digest: "v1:sha256:c5fd9e8c8caec2ee5654d879079fe32927469e7aa60d800abf28c
 behavior_unverified: 0
 overrides_applied: 0
 re_verification:
-  previous_status: gaps_found
+  previous_status: "gaps_found"
   previous_score: 4/7
   gaps_closed:
     - "The auth flow is validated against the real stream via a manual probe script before the full pipeline is trusted"
