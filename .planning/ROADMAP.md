@@ -53,7 +53,18 @@ Plans:
   3. State transitions follow CLOSED→OPENING→OPEN→CLOSING without spurious duplicate transitions.
   4. Barrier detection is validated against recorded real footage of both a genuine opening and a car passing with the gate closed.
 
-**Plans**: TBD
+**Plans**: 2/2 planned
+
+Plans:
+**Wave 1** — no prerequisites, executable immediately
+
+- [ ] 02-01-PLAN.md — Barrier detector core: reference-frame edge matching + dwell-gated FSM. Synthetic-scene tests only, needs no recordings.
+
+**Wave 2** *(blocked on Wave 1 completion AND on a real on-site recording session)*
+
+- [ ] 02-02-PLAN.md — Consumer thread + main.py wiring + bootstrapped references + measured validation against recorded real footage.
+
+> **Note on SC #1 wording.** The camera source is a ~1.5 fps single-frame snapshot feed (`preview.mp4`), not a video stream — see `02-CONTEXT.md` D-01…D-04. Criterion 1 is therefore read as "state confirmed by N consecutive samples", not continuous transition tracking. Criterion 4 additionally requires real recordings that do not exist yet; plan 02-02 is gated on producing them.
 
 ### Phase 3: Event Store + Photo Store + Event Coordinator (FSM)
 
@@ -123,7 +134,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Stream Client + Frame Buffer | 2/2 | Complete | 2026-10-04 |
-| 2. Barrier State Detector | 0/TBD | Not started | - |
+| 2. Barrier State Detector | 0/2 | Planned | - |
 | 3. Event Store + Photo Store + Event Coordinator (FSM) | 0/TBD | Not started | - |
 | 4. Vehicle Detector | 0/TBD | Not started | - |
 | 5. Plate Recognizer | 0/TBD | Not started | - |

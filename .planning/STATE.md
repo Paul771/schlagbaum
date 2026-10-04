@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-10-04)
 ## Current Position
 
 Phase: 2 of 6 (Barrier State Detector)
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-10-04 — Phase 01 verified (UAT 6/6) and completed; Phase 02 context gathered
+Plan: 0 of 2 planned
+Status: Planned — 02-01 ready to execute; 02-02 blocked on a real recording session
+Last activity: 2026-10-04 — Phase 02 context, research, validation strategy and 2 plans created
 
 Progress: [████████████████████] 2/2 plans (100%)
 
