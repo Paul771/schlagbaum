@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-10-04)
 Phase: 2 of 6 (Barrier State Detector)
 Plan: Not started
 Status: Ready to plan
-Last activity: 2026-10-04 — Phase 01 verified (UAT 6/6) and completed
+Last activity: 2026-10-04 — Phase 01 verified (UAT 6/6) and completed; Phase 02 context gathered
 
 Progress: [████████████████████] 2/2 plans (100%)
 
@@ -67,6 +67,8 @@ Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
 - [Phase 1]: Highest-risk unknown (privratnik.net proxy auth/reconnect) is live-validated — probe PASS, 2-camera capture, re-auth recovery; UAT 6/6.
+- [Phase 1/2]: `preview.mp4` is a single-frame 40ms snapshot, not a stream (no m3u8/rtsp/rtmp in the web UI). Capture polls it in-process with HTTP keep-alive at ~1.5 fps per camera (ffmpeg-subprocess path: 0.79 fps).
+- [Phase 2]: Barrier detection must be state classification + dwell confirmation over sparse snapshots, not continuous transition tracking.
 - [Phase 1]: Bounded drop-oldest queue decouples capture from slower analysis; capture never blocks.
 - [Phase 1]: SessionManager interface is login()/get_session()/stream_headers_and_url() — no live_headers()/invalidate(); supervisor uses a reader thread + frame_stale_seconds to detect silent stream death.
 - [Phase 3]: SQLite event store with photos as files on disk (paths in DB, not BLOBs); FSM must exist before persistence to avoid duplicate events.
