@@ -7,7 +7,7 @@ from unittest import mock
 
 import pytest
 
-from src.capture.auth import AuthExpiredError, SessionManager, _extract_token
+from src.capture.auth import AUTH_URL, AuthExpiredError, SessionManager, _extract_camera_tokens, _extract_token
 
 
 def _settings():
@@ -36,6 +36,84 @@ def _mock_response(status=200, text="", json_data=None, cookies=None, url="https
     resp.cookies = mock.Mock()
     resp.cookies.get.side_effect = lambda name, default=None: cookies.get(name, default)
     return resp
+
+
+def test_login_uses_authorization_form_endpoint_and_field_names():
+    resp = _mock_response(json_data={"token": "tok-123"})
+    session = mock.Mock()
+    session.post.return_value = resp
+    session.cookies = resp.cookies
+
+    with mock.patch("src.capture.auth.requests.Session", return_value=session):
+        SessionManager(_settings()).login()
+
+    assert AUTH_URL == "https://privratnik.net/login.php"
+    assert session.post.call_args.args[0] == AUTH_URL
+    assert session.post.call_args.kwargs["data"] == {
+        "phone": "test_login",
+        "pass": "test_password",
+    }
+
+
+def test_extract_camera_tokens_from_video_control_page():
+    resp = _mock_response(
+        text=(
+            '<img data-url="https://cam2.privratnik.net/cam-1/preview.mp4?token=tok-1">'
+            '<img data-url="https://cam2.privratnik.net/cam-2/preview.mp4?token=tok-2">'
+        )
+    )
+
+    assert _extract_camera_tokens(resp) == {
+        "https://cam2.privratnik.net/cam-1/preview.mp4": "tok-1",
+        "https://cam2.privratnik.net/cam-2/preview.mp4": "tok-2",
+    }
+
+
+def test_login_fetches_video_control_page_and_indexes_camera_tokens():
+    login_resp = _mock_response(text="<html>redirected</html>")
+    video_resp = _mock_response(
+        text=(
+            '<img data-url="https://cam2.privratnik.net/cam-1/preview.mp4?token=tok-1">'
+            '<img data-url="https://cam2.privratnik.net/cam-2/preview.mp4?token=tok-2">'
+        )
+    )
+    session = mock.Mock()
+    session.post.return_value = login_resp
+    session.get.return_value = video_resp
+    session.cookies = login_resp.cookies
+
+    with mock.patch("src.capture.auth.requests.Session", return_value=session):
+        mgr = SessionManager(_settings())
+        _, token = mgr.login()
+
+    assert token == "tok-1"
+    assert mgr._camera_tokens == {
+        "https://cam2.privratnik.net/cam-1/preview.mp4": "tok-1",
+        "https://cam2.privratnik.net/cam-2/preview.mp4": "tok-2",
+    }
+    session.get.assert_called_once()
+
+
+def test_stream_headers_uses_token_for_requested_camera():
+    login_resp = _mock_response(text="<html>redirected</html>")
+    video_resp = _mock_response(
+        text=(
+            '<img data-url="https://cam2.privratnik.net/cam-1/preview.mp4?token=tok-1">'
+            '<img data-url="https://cam2.privratnik.net/cam-2/preview.mp4?token=tok-2">'
+        )
+    )
+    session = mock.Mock()
+    session.post.return_value = login_resp
+    session.get.return_value = video_resp
+    session.cookies = login_resp.cookies
+
+    with mock.patch("src.capture.auth.requests.Session", return_value=session):
+        mgr = SessionManager(_settings())
+        url, _ = mgr.stream_headers_and_url(
+            "cam_2", "https://cam2.privratnik.net/cam-2/preview.mp4"
+        )
+
+    assert url.endswith("?token=tok-2")
 
 
 def test_login_sets_phpsessid_cookie_and_returns_token():
@@ -102,6 +180,7 @@ def test_login_raises_auth_expired_when_token_absent():
     resp = _mock_response(text=body)
     session = mock.Mock()
     session.post.return_value = resp
+    session.get.return_value = _mock_response(text="<html>no token anywhere</html>")
     session.cookies = resp.cookies
 
     with mock.patch("src.capture.auth.requests.Session", return_value=session):
@@ -125,6 +204,7 @@ def test_stream_headers_and_url_raises_when_token_none():
     resp = _mock_response(text="<html>no token anywhere</html>")
     session = mock.Mock()
     session.post.return_value = resp
+    session.get.return_value = _mock_response(text="<html>no token anywhere</html>")
     session.cookies = resp.cookies
 
     with mock.patch("src.capture.auth.requests.Session", return_value=session):
