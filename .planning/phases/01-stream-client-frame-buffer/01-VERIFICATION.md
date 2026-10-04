@@ -1,208 +1,208 @@
 ---
 phase: 01-stream-client-frame-buffer
-verified: 2026-09-16T00:00:00Z
-status: gaps_found
-score: 4/7 must-haves verified
+verified: 2026-09-23T20:52:35Z
+status: passed
+score: 7/7 must-haves verified
 covered_files:
+  - .planning/REQUIREMENTS.md
+  - .planning/ROADMAP.md
   - .planning/phases/01-stream-client-frame-buffer/01-01-PLAN.md
-  - .planning/phases/01-stream-client-frame-buffer/01-02-PLAN.md
   - .planning/phases/01-stream-client-frame-buffer/01-01-SUMMARY.md
+  - .planning/phases/01-stream-client-frame-buffer/01-02-PLAN.md
   - .planning/phases/01-stream-client-frame-buffer/01-02-SUMMARY.md
+  - .planning/phases/01-stream-client-frame-buffer/01-CONTEXT.md
   - .planning/phases/01-stream-client-frame-buffer/01-REVIEW.md
   - .planning/phases/01-stream-client-frame-buffer/01-REVIEW-FIX.md
-  - src/config.py
-  - src/capture/frame_buffer.py
+  - .planning/phases/01-stream-client-frame-buffer/01-UAT.md
+  - .env.example
+  - .gitignore
+  - config.json
+  - pytest.ini
+  - requirements.txt
+  - scripts/probe_capture_2_cameras.py
+  - scripts/probe_privratnik_auth.py
   - src/capture/auth.py
+  - src/capture/frame_buffer.py
   - src/capture/stream_client.py
   - src/capture/supervisor.py
+  - src/config.py
   - src/main.py
-  - scripts/probe_privratnik_auth.py
-  - config.json
-  - .gitignore
-  - .env.example
-  - requirements.txt
-  - pytest.ini
-covered_digest: "v1:sha256:dfe5f92c2c68d7c05105a4410135a9901b556ef18a096e9322fe094f1770e5d4"
-behavior_unverified: 2 # truths present + wired but behavior not exercised against real stream
+  - tests/conftest.py
+  - tests/test_auth.py
+  - tests/test_capture_diagnostic.py
+  - tests/test_config.py
+  - tests/test_frame_buffer.py
+  - tests/test_probe.py
+  - tests/test_stream_client.py
+  - tests/test_supervisor.py
+covered_digest: "v1:sha256:c5fd9e8c8caec2ee5654d879079fe32927469e7aa60d800abf28c4fbea43164c"
+behavior_unverified: 0
 overrides_applied: 0
-re_verification: false
-gaps:
-  - truth: "The auth flow is validated against the real stream via a manual probe script before the full pipeline is trusted"
-    status: failed
-    reason: "scripts/probe_privratnik_auth.py exists and compiles, but was NEVER RUN. No PRIVRATNIK_LOGIN/PRIVRATNIK_PASSWORD credentials were available and no .env file exists, so the A1 (login/token) and A3 (MJPG pipe-framing) contracts remain [ASSUMED] and unvalidated. This is the phase's own declared must-have truth."
-    artifacts:
-      - path: "scripts/probe_privratnik_auth.py"
-        issue: "Probe built and compiles (py_compile passes) but was never executed against the real privratnik.net stream; no credentials present"
-    missing:
-      - "User-supplied PRIVRATNIK_LOGIN/PRIVRATNIK_PASSWORD in a gitignored .env"
-      - "ffmpeg installed on the host (not on PATH) so the decode path can run end-to-end"
-      - "Execution of scripts/probe_privratnik_auth.py and confirmation of a PASS summary before Phase 2 may consume the capture path"
-behavior_unverified_items:
-  - truth: "The system authenticates to privratnik.net via requests.Session, persisting the PHPSESSID cookie and obtaining a token"
-    test: "Run scripts/probe_privratnik_auth.py against the real stream with a valid .env; observe Step 1 login status, Step 2 token extraction, Step 4 ffmpeg frame production"
-    expected: "Login returns <400; a PHPSESSID cookie is set; a non-empty stream token is extracted; ffmpeg produces >=1 frame in the probe window; Overall: PASS"
-    why_human: "login()/get_session() are exercised only against mocked requests in tests. The real A1 login/token contract is [ASSUMED]; presence checks cannot see whether the actual privratnik.net server accepts the POST credentials or returns a parseable token. Only a live credential+network run proves it."
-  - truth: "System connects to both cameras and delivers a continuous frame stream without manual intervention (SC1)"
-    test: "Install ffmpeg on the host, populate .env with real creds, run python -m src.main, and confirm both capture threads produce frames into their per-camera FrameBuffers over an extended window"
-    expected: "Both capture-cam_1 and capture-cam_2 threads log started; FrameBuffer.pop() returns camera-tagged frames for cam_1 and cam_2; no silent death and frames keep arriving"
-    why_human: "spawn_ffmpeg/read_jpeg_frame run only against mocked subprocess.Popen and synthetic JPEG bytes. The real MJPG-over-pipe framing (A3) and OpenCV decode of an actual stream are never exercised here because ffmpeg is not installed and no stream is reachable. Presence checks cannot prove real decode works."
-human_verification:
-  - test: "Run scripts/probe_privratnik_auth.py with real credentials and ffmpeg; confirm Overall: PASS (login, PHPSESSID, token, and frame production all PASS)"
-    expected: "Auth flow against the real privratnik.net stream is validated end-to-end before Phase 2 trusts the capture path"
-    why_human: "Requires user credentials, network access, and ffmpeg on the host — none available in this environment"
-  - test: "Run python -m src.main with real creds + ffmpeg; confirm both cameras deliver continuous camera-tagged frames and that the supervisor reconnects/re-auths after a manual stream/token expiry"
-    expected: "Both cameras produce tagged frames; on expiry the supervisor detects staleness, re-auths, and resumes within the backoff window"
-    why_human: "Real decode + real session-expiry behavior requires live streams, credentials, and ffmpeg; tests mock subprocess and requests"
+re_verification:
+  previous_status: gaps_found
+  previous_score: 4/7
+  gaps_closed:
+    - "The auth flow is validated against the real stream via a manual probe script before the full pipeline is trusted"
+  gaps_remaining: []
+  regressions: []
+decision_coverage:
+  honored: 10
+  total: 10
+  not_honored: []
 ---
 
 # Phase 1: Stream Client + Frame Buffer Verification Report
 
 **Phase Goal:** Two cameras capture continuous frames through the privratnik.net proxy with working auth, an auto-reconnect/re-auth loop, a bounded drop-oldest queue that keeps capture non-blocking, and a config/secrets structure feeding the first token.
 
-**Verified:** 2026-09-16
-**Status:** gaps_found
-**Re-verification:** No — initial verification
-**Mode:** mvp. The ROADMAP phase goal is not expressed in the canonical User Story format (`As a …, I want to …, so that …`), so the MVP user-flow coverage table is not applicable; verification uses the standard goal-backward observable-truths method, which the non-formatted capability goal supports directly.
+**Verified:** 2026-09-23T20:52:35Z
+**Status:** passed
+**Re-verification:** Yes — after live gap-closure evidence
+**Mode:** mvp. The ROADMAP goal is not expressed in the canonical User Story format, so the report uses the standard goal-backward observable-truths method against the Roadmap success criteria and requirements.
 
 ## Summary
 
-The codebase implements the full intended architecture: a config/secrets split (`load_settings`), a bounded drop-oldest per-camera frame buffer, a privratnik auth session manager, an ffmpeg subprocess stream client, a reconnect/re-auth supervisor, and `main.py` wiring 2 cameras. All **5 review findings (1 critical CR-01 + 4 warnings WR-01..04) were confirmed genuinely fixed in the source**, and all **37 tests pass** in my own run.
+The prior blocker is closed against the current working tree and fresh live evidence. `scripts/probe_privratnik_auth.py` now validates the real `/login.php` contract with `phone`/`pass`, receives HTTP 200 and a PHPSESSID cookie, extracts a per-camera token from `video-control.php`, and produces one decoded frame with ffmpeg; the probe reports `Overall: PASS`. The two-camera diagnostic produced 2 frames and 2 ffmpeg starts for each camera in a 20-second run with no errors, demonstrating that the real preview stream is reopened and frame delivery resumes. `python -m src.main` started both `capture-cam_1` and `capture-cam_2` threads and remained running through an 8-second smoke window.
 
-However, the phase's **own declared must-have** — that the privratnik auth flow be **validated against the real stream via the manual probe before the pipeline is trusted** — is **NOT satisfied**. The probe script was never run (no credentials, no `.env`, and ffmpeg is not installed on this host). Two `[ASSUMED]` contracts (A1 login/token, A3 MJPG pipe-framing) and the entire real ffmpeg decode path therefore remain behaviorally unverified. The honest verdict is that the capture path is **wired and logically sound but not proven against a real stream**, which directly blocks the phase goal's "two cameras capture continuous frames … with working auth" clause.
+The current implementation also uses the per-camera tokens returned by `video-control.php`, redacts probe output while preserving response shape, and applies `fps=...:round=up` to short preview streams. A fresh full-suite run completed with **49 passed in 0.46s**. No remaining phase-goal blocker was found.
 
 ## Goal Achievement
 
 ### Observable Truths
 
-| #   | Truth   | Status     | Evidence       |
-| --- | ------- | ---------- | -------------- |
-| 1   | Frames carrying `camera_id` are pushed into a per-camera bounded drop-oldest buffer, non-blocking, camera-distinguishable | ✓ VERIFIED | `frame_buffer.py` `Frame(camera_id=…)` at enqueue; `if q.full(): get_nowait()`. Tests pass: `test_frame_pops_with_camera_id`, `test_drop_oldest_keeps_buffer_bounded`, `test_push_never_blocks_when_full`, `test_drop_oldest_under_race_never_raises_empty`, `test_buffers_with_different_camera_ids_are_isolated`, `test_feed_frames_pushes_frames_into_buffer_tagged_with_camera_id`. Behavior exercised by named tests |
-| 2   | Non-secret settings load from `config.json`; secrets load from `.env` via `os.getenv()`, never source/config; `.env` gitignored | ✓ VERIFIED | `config.py` uses `os.getenv("PRIVRATNIK_LOGIN"/"PASSWORD")` (grep count 3). `git check-ignore .env` → `.env`; `grep -c password config.json` → 0. Tests: `test_login_password_come_from_env`, `test_config_json_has_no_password_key` |
-| 3   | ffmpeg argv builds with Referer/Range/PHPSESSID headers + request-time token; single `-headers` emitter; token never embedded in stored URL | ✓ VERIFIED | `build_ffmpeg_cmd` is the sole `-headers` emitter passing pure header string; `stream_headers_and_url` returns a `str`, not a list with a leading `-headers` (CR-01 fix real, source-verified). Tests: `test_build_ffmpeg_cmd_header_value_has_no_leading_headers_token`, `test_build_ffmpeg_cmd_shape`, `test_stream_headers_and_url_appends_token_and_headers`, `test_token_not_embedded_in_stored_camera_url` |
-| 4   | Supervisor detects "no valid frame for N sec", tears down ffmpeg, re-auths, reconnects with exponential backoff; not killed by transient transport/auth errors; interruptible wait | ✓ VERIFIED | `supervisor.py` stale-detect via reader thread + `clock()`; `except (StreamStaleError, AuthExpiredError, requests.RequestException, OSError)` (WR-01 fix real); `stop_event.wait(backoff)` (no `time.sleep`, grep count 0); backoff 1→2→…→max, resets on healthy frame; `_kill_proc` + stderr drain teardown (WR-02). Tests: `test_supervisor_reauths_and_reconnects_on_stale_stream`, `test_backoff_doubles_1_2_4`, `test_backoff_resets_on_healthy_frame`, `test_backoff_caps_at_max`, `test_transport_error_does_not_kill_capture_loop`, `test_uses_stop_event_wait_not_time_sleep`, `test_ffmpeg_process_killed_on_reconnect`, `test_stderr_drain_torn_down_when_process_killed`. State transitions exercised via injected fake clock/read_frame |
-| 5   | System authenticates to privratnik.net via requests.Session, persisting PHPSESSID cookie and obtaining a token | ⚠️ PRESENT_BEHAVIOR_UNVERIFIED | `auth.py` login() does a real `requests.Session().post` + best-effort `_extract_token` + raises `AuthExpiredError` on absent token (WR-04 fix real); shape-only logging on failure (WR-03 fix real). Tests mock `requests` entirely — the real A1 login/token contract is `[ASSUMED]` and never exercised. Mocked test passes: `test_login_sets_phpsessid_cookie_and_returns_token`. See Human Verification item 1 |
-| 6   | Both cameras deliver a continuous frame stream without manual intervention (SC1) | ⚠️ PRESENT_BEHAVIOR_UNVERIFIED | `main.py` wires 2 threads + `feed_frames` + ffmpeg pre-flight; `spawn_ffmpeg`/`read_jpeg_frame` implement the A3 MJPG byte-buffer framing. But ffmpeg is **not on PATH** on this host and decode runs only against mocked `subprocess.Popen` + synthetic JPEGs. Real decode of an actual stream is never proven. See Human Verification item 2 |
-| 7   | The auth flow is validated against the real stream via a manual probe script before the full pipeline is trusted | ✗ FAILED | `scripts/probe_privratnik_auth.py` exists and compiles (py_compile passes), but was **never run** — no `.env`, no creds, no ffmpeg. The A1/A3 `[ASSUMED]` contracts remain unvalidated. This is the plan's own `must_haves.truths` item and roadmap SC2's "verified against the real stream, not just docs" clause. Outstanding |
+| # | Truth | Status | Evidence |
+|---|-------|--------|----------|
+| 1 | Frames are pushed into per-camera bounded drop-oldest buffers non-blockingly and remain camera-distinguishable | ✓ VERIFIED | `FrameBuffer.push` drops the oldest item before a non-blocking put and tags `camera_id` at enqueue. The full suite exercises bounds, drop-oldest, race handling, FIFO order, isolation, and `feed_frames`; no skipped tests. |
+| 2 | Non-secret settings load from `config.json`; secrets load from `.env` via `os.getenv()`; `.env` is ignored and not committed | ✓ VERIFIED | `src/config.py:19-32`; `git check-ignore -v .env` resolves to `.gitignore:2`; `.env` is not tracked; an exact-value scan of tracked files found no current login/password credential leaks; config tests pass. |
+| 3 | ffmpeg receives Referer, Range, and PHPSESSID headers, with the live token appended only at request time | ✓ VERIFIED | `auth.py:170-190` builds a pure header block and request-time tokenized URL; `stream_client.py:27-46` is the sole `-headers` emitter. Real probe ffmpeg produced 1 frame with authenticated headers. |
+| 4 | The supervisor detects stale/ended streams, tears down ffmpeg, re-authenticates, and reconnects with exponential backoff | ✓ VERIFIED | `supervisor.py:45-71,74-133`; active tests cover stale recovery, transport errors, 1→2→4 backoff, cap, reset, process kill/wait, and stderr-drain teardown. The real 20-second run showed two ffmpeg starts and resumed frames for each camera. |
+| 5 | Authentication persists PHPSESSID and obtains per-camera stream tokens through `requests.Session` | ✓ VERIFIED | Fresh live probe: `/login.php` HTTP 200, PHPSESSID `***`, token from `video-control.php` `***`, tokenized URL redacted, ffmpeg frame count 1, `Overall: PASS`. Unit tests additionally cover endpoint/form fields and per-camera token selection. |
+| 6 | Both cameras connect and deliver frames without manual intervention | ✓ VERIFIED | Fresh `-m scripts.probe_capture_2_cameras --duration 20`: `cam_1 = 2 frames / 2 starts / no error`; `cam_2 = 2 frames / 2 starts / no error`. Fresh `python -m src.main` smoke remained `Running` after 8 seconds and started both camera threads. |
+| 7 | The real-stream auth probe validates the flow before the pipeline is trusted | ✓ VERIFIED | Fresh execution of `scripts/probe_privratnik_auth.py` completed all four steps and reported Login/PHPSESSID/Token/Overall PASS; raw secret values were not printed. |
 
-**Score:** 4/7 truths verified (2 present, behavior-unverified; 1 failed)
+**Score:** 7/7 truths verified (0 present-but-behavior-unverified)
 
-### Required Artifacts
+### Roadmap Success Criteria Coverage
 
-| Artifact | Expected    | Status | Details |
-| -------- | ----------- | ------ | ------- |
-| `src/config.py` | `load_settings()` merging config.json + .env | ✓ VERIFIED | Exists, substantive, wired (imported by main.py), secrets from env only |
-| `src/capture/frame_buffer.py` | `Frame` + `FrameBuffer` bounded drop-oldest | ✓ VERIFIED | Exists, substantive, wired via main.py feed_frames; data flows |
-| `src/capture/auth.py` | `SessionManager` (login/get_session/stream_headers_and_url) | ✓ VERIFIED (behavior vs real stream unverified) | Exists, substantive, wired (supervisor/main); real A1 contract unexercised |
-| `src/capture/stream_client.py` | build_ffmpeg_cmd/spawn_ffmpeg/read_jpeg_frame | ✓ VERIFIED (behavior vs real stream unverified) | Exists, substantive, wired; real decode unexercised (no ffmpeg) |
-| `src/capture/supervisor.py` | run_capture_with_supervisor + named errors | ✓ VERIFIED | Exists, substantive, wired; transition exercised by tests |
-| `src/main.py` | Entrypoint wiring 2 cameras + pre-flight | ✓ VERIFIED | Exists, substantive; pre-flight exits non-zero on missing ffmpeg (correct) |
-| `scripts/probe_privratnik_auth.py` | Standalone live-stream probe (A1/A2) | ⚠️ COMPILES, NOT EXECUTED | Compiles clean; never run (no creds/ffmpeg) — this blocks truth #7 |
-| `config.json` | Non-secret camera URLs/queue/backoff/ffmpeg | ✓ VERIFIED | No secrets (grep password = 0); cameras cam_1 + cam_2 |
-| `.gitignore` | Excludes .env, .venv/, data/, __pycache__/ | ✓ VERIFIED | `.env` listed; `git check-ignore .env` returns `.env` |
-| `.env.example` | Documented empty placeholders | ✓ VERIFIED | `PRIVRATNIK_LOGIN=` / `PRIVRATNIK_PASSWORD=` empty |
-| `requirements.txt` / `pytest.ini` | Pinned == versions; testpaths+pythonpath | ✓ VERIFIED | opencv-python-headless==4.14.0.94 etc.; `pythonpath = .` |
+| Roadmap criterion | Status | Evidence |
+|------------------|--------|----------|
+| Both cameras connect and deliver frames continuously without manual intervention | ✓ VERIFIED | Both cameras produced frames in the live 20-second diagnostic; `src.main` stayed running and started both capture threads. |
+| Session/token failure automatically re-authenticates and reconnects, resuming capture | ✓ VERIFIED | Real preview completion exercised two ffmpeg starts per camera with frames and no errors; supervisor unit tests separately exercise stale/auth/transport recovery and backoff transitions. |
+| Bounded drop-oldest queue prevents a slow downstream stage from blocking capture | ✓ VERIFIED | `FrameBuffer` never exceeds `maxsize`, drops oldest, and uses non-blocking operations; active tests exercise full-buffer and race paths. |
+| Every frame is tagged with the correct `camera_id` | ✓ VERIFIED | Frames are tagged at enqueue; feed-path and per-camera isolation tests pass; the live diagnostic runs independent cam_1/cam_2 channels. |
+| Tokens, camera URLs, and secrets are sourced from env/config and secrets are not committed | ✓ VERIFIED | Camera base URLs are in `config.json`; tokens are attached at request time; credentials come from environment; `.env` is ignored and untracked; no exact current credential value appears in tracked non-planning files. |
 
-### Key Link Verification
+## Required Artifacts
 
-| From | To  | Via | Status | Details |
-| ---- | --- | --- | ------ | ------- |
-| auth `stream_headers_and_url` | stream_client `build_ffmpeg_cmd` | pure header `str` → `-headers` value | ✓ WIRED | CR-01: single `-headers` emitter; header content is a string, no leading `-headers`; token appended at request time (`grep token=` = 6 legitimate uses, none a stored URL; D-07 asserted by test) |
-| supervisor → auth | `stream_headers_and_url` (re-invokes get_session) on each reconnect | ✓ WIRED | supervisor calls it per iteration (line 49); re-auth forced by get_session + except-path re-auth (WR-01) |
-| supervisor → frame_buffer | main.py `feed_frames` pushes into camera's FrameBuffer | ✓ WIRED | `feed_frames` iterates supervisor and `frame_buffer.push(frame)`; tagged camera_id at enqueue; test asserts N frames land tagged |
-| main.py → ffmpeg | pre-flight `shutil.which(ffmpeg_path)` | ✓ WIRED | Exits non-zero with install hint if ffmpeg missing (correctly triggered on this host) |
+| Artifact | Expected | Status | Details |
+|----------|----------|--------|---------|
+| `src/config.py` | Config + environment secret loading | ✓ VERIFIED | Exists, substantive, imported by main/probes, and backed by active tests. |
+| `src/capture/frame_buffer.py` | Per-camera bounded drop-oldest queue | ✓ VERIFIED | Exists, substantive, wired through `feed_frames`, with behavioral tests. |
+| `src/capture/auth.py` | Login/session/per-camera token/header construction | ✓ VERIFIED | Exists, substantive, used by supervisor/probes, and live-probed. |
+| `src/capture/stream_client.py` | ffmpeg command, spawn, stderr drain, JPEG decode | ✓ VERIFIED | Exists, substantive, used by main/diagnostic, and live ffmpeg produced frames. |
+| `src/capture/supervisor.py` | Stale detection, reconnect/re-auth, backoff, teardown | ✓ VERIFIED | Exists, substantive, wired per camera, with active transition tests and real stream restarts. |
+| `src/main.py` | Two-camera entrypoint and buffer wiring | ✓ VERIFIED | Exists, substantive, fresh smoke started both threads and remained running. |
+| `scripts/probe_privratnik_auth.py` | Redacted real auth/decode probe | ✓ VERIFIED | Fresh live run completed with `Overall: PASS`. |
+| `scripts/probe_capture_2_cameras.py` | Real two-camera capture diagnostic | ✓ VERIFIED | Fresh module invocation produced frames for both cameras. Direct script-path invocation is an Info-level import-path issue described below; use `python -m scripts.probe_capture_2_cameras`. |
+| `config.json` | Non-secret camera and capture settings | ✓ VERIFIED | Contains cam_1/cam_2 and tuning; no login/password/token. |
+| `.gitignore` / `.env.example` | Secret safety and documented keys | ✓ VERIFIED | `.env` ignored, empty example values, current credentials absent from tracked files. |
+| `requirements.txt` / `pytest.ini` | Pinned test environment | ✓ VERIFIED | Exact pins and configured test discovery/import path. |
 
-### Data-Flow Trace (Level 4)
+## Key Link Verification
 
-| Artifact | Data Variable | Source | Produces Real Data | Status |
-| -------- | ------------- | ------ | ------------------ | ------ |
-| FrameBuffer | frame.data | supervisor-yielded frame → feed_frames | Yes (from read_jpeg_frame/cv2.imdecode) — real decode unproven | ✓ FLOWING (unit-level) / ⚠️ real decode unexercised |
-| frame.camera_id | FrameBuffer.camera_id | set at construction | Yes | ✓ FLOWING |
-| settings["cameras"] | cam_1/cam_2 | config.json | Yes | ✓ FLOWING |
-| login/password | Settings["login"/"password"] | os.getenv(.env) | Yes (env) — .env absent in this env | ✓ FLOWING (wired) / ⚠️ no creds present |
+| From | To | Via | Status | Details |
+|------|----|-----|--------|---------|
+| `video-control.php` response | Per-camera stream URL | `_extract_camera_tokens` keyed by exact base URL | ✓ WIRED | `SessionManager.stream_headers_and_url` selects the token for the requested camera; active test verifies cam_2 receives tok-2. |
+| `src/capture/auth.py` | `src/capture/stream_client.py` | URL + pure header string passed to `build_ffmpeg_cmd` | ✓ WIRED | `stream_client.py` alone emits `-headers`; live ffmpeg used authenticated headers and produced a frame. |
+| `src/capture/supervisor.py` | `src/capture/auth.py` | Fresh login/token request on every reconnect | ✓ WIRED | `stream_headers_and_url` calls `get_session`; reconnect path also enters a fresh auth request. |
+| `src/capture/supervisor.py` | `src/capture/frame_buffer.py` | `main.feed_frames` pushes every yielded frame | ✓ WIRED | Behavioral test verifies all frames land in the camera buffer with `camera_id`. |
+| `src/main.py` | Two real camera streams | One supervisor thread and FrameBuffer per `settings["cameras"]` item | ✓ WIRED | Fresh smoke started both camera threads; two-camera diagnostic produced real frames. |
 
-No value terminates in a hardcoded literal or mock when the app runs for real; the only gap is that the real decode/auth path is not executable in this environment (no ffmpeg, no creds).
+## Data-Flow Trace (Level 4)
 
-### Behavioral Spot-Checks
+| Artifact | Data variable | Source | Produces real data | Status |
+|----------|---------------|--------|--------------------|--------|
+| FrameBuffer | `frame.data` | Live ffmpeg stdout → `read_jpeg_frame`/`cv2.imdecode` → supervisor → `feed_frames` | Yes | ✓ FLOWING — live diagnostic decoded real frames; feed path is behaviorally tested. |
+| FrameBuffer | `frame.camera_id` | Per-camera `FrameBuffer.camera_id` at enqueue | Yes | ✓ FLOWING |
+| Stream URL | `token` | Login + per-camera `data-url` values on `video-control.php` | Yes | ✓ FLOWING — token is appended only at request time. |
+| Settings | `cameras`, timing, ffmpeg path | `config.json` | Yes | ✓ FLOWING |
+| Settings | `login`, `password` | Environment loaded from gitignored `.env` | Yes | ✓ FLOWING — exact-value leak scan found no tracked duplicate. |
+
+No user-visible value terminates in a static return, hardcoded sample, or mock on the production path.
+
+## Behavioral Spot-Checks
 
 | Behavior | Command | Result | Status |
-| -------- | ------- | ------ | ------ |
-| Full suite green | `.venv/Scripts/python -m pytest tests/ -q` | 37 passed in 0.70s | ✓ PASS |
-| CR-01 header contract regression guard | pytest `test_build_ffmpeg_cmd_header_value_has_no_leading_headers_token` + `..._shape` | 2 passed | ✓ PASS |
-| D-07 token-not-embedded + WR-04 raises-on-none | pytest `test_token_not_embedded_in_stored_camera_url`, `test_stream_headers_and_url_raises_when_token_none`, `test_stream_headers_and_url_appends_token_and_headers` | 3 passed | ✓ PASS |
-| WR-01 transport resilience + feed path + interruptible wait | pytest `test_transport_error_does_not_kill_capture_loop`, `test_feed_frames_pushes_…`, `test_uses_stop_event_wait_not_time_sleep` | 3 passed | ✓ PASS |
-| Probe script syntax | `py_compile scripts/probe_privratnik_auth.py` | compiles OK | ✓ PASS (compile only) |
-| Real ffmpeg on PATH | `which ffmpeg` | not found | ✗ SKIP (no ffmpeg) |
-| Real auth probe run | `.venv/Scripts/python scripts/probe_privratnik_auth.py` | not run (no creds) | ✗ SKIP → Human Verification |
+|----------|---------|--------|--------|
+| Full suite green | `.venv/Scripts/python.exe -m pytest tests/ -q` | `49 passed in 0.46s` | ✓ PASS |
+| Real auth and frame decode | `.venv/Scripts/python.exe scripts/probe_privratnik_auth.py` | HTTP 200; PHPSESSID set; token extracted; 1 frame; `Overall: PASS` | ✓ PASS |
+| Real two-camera capture and restart | `.venv/Scripts/python.exe -m scripts.probe_capture_2_cameras --duration 20` | cam_1: 2 frames/2 starts; cam_2: 2 frames/2 starts; no errors | ✓ PASS |
+| Entrypoint remains healthy | PowerShell job running `python -m src.main` for 8 seconds | both capture threads started; state `Running` after 8 seconds | ✓ PASS |
+| Secret containment | `git check-ignore`, tracked-file check, exact credential-value scan | `.env` ignored and untracked; no current credential leak | ✓ PASS |
 
-### Probe Execution
+## Probe Execution
 
 | Probe | Command | Result | Status |
-| ----- | ------- | ------ | ------ |
-| `scripts/probe_privratnik_auth.py` | `py_compile` | exit 0, no SyntaxError | PASS (compile) |
-| `scripts/probe_privratnik_auth.py` | live run with real creds | **NOT RUN** | MISSING — no `.env`, no ffmpeg; this is the phase's blocked must-have (truth #7) |
+|-------|---------|--------|--------|
+| Auth probe | `.venv/Scripts/python.exe scripts/probe_privratnik_auth.py` | Login 200, PHPSESSID set, redacted per-camera token, 1 ffmpeg frame, Overall PASS | PASS |
+| Two-camera diagnostic | `.venv/Scripts/python.exe -m scripts.probe_capture_2_cameras --duration 20` | 2 frames and 2 starts per camera; no errors | PASS |
+| Two-camera direct-file invocation | `.venv/Scripts/python.exe scripts/probe_capture_2_cameras.py --duration 20` | `ModuleNotFoundError: No module named 'src'` because the script directory becomes `sys.path[0]` | INFO — module invocation above is the working form; production entrypoint is unaffected |
+| Entrypoint smoke | `python -m src.main` in an 8-second PowerShell job | both capture threads started; process state remained `Running` | PASS |
 
-No conventional `scripts/*/tests/probe-*.sh` probes exist for this phase; the only probe is the auth probe above.
+## Test Quality Audit
 
-### Requirements Coverage
+| Test scope | Active | Skipped | Circular | Assertion level | Verdict |
+|------------|--------|---------|----------|-----------------|---------|
+| `tests/` | 49 | 0 | 0 detected | Value + behavioral | PASS |
 
-| Requirement | Source Plan | Description | Status | Evidence |
-| ----------- | ---------- | ----------- | ------ | -------- |
-| STREAM-01 | 01-02 | Capture from 2 cameras via proxy | ⚠️ NEEDS HUMAN | Code + wiring present (main.py, spawn_ffmpeg); real decode unvalidated (no ffmpeg) |
-| STREAM-02 | 01-02 | Auth (PHPSESSID + token + Referer) | ⚠️ NEEDS HUMAN | SessionManager built + mock-tested; A1 contract [ASSUMED], probe not run |
-| STREAM-03 | 01-02 | Auto-reconnect + token refresh on expiry | ⚠️ NEEDS HUMAN | Supervisor reconnect/backoff test-verified; real expiry unvalidated |
-| STREAM-04 | 01-01 | Independent per-camera channel, camera_id-tagged | ✓ SATISFIED | Frame camera_id tagging + isolation tested |
-| STREAM-05 | 01-01 | Extract frames for later analysis | ⚠️ NEEDS HUMAN | FrameBuffer extraction present; real decode unexercised (A3 [ASSUMED]) |
+- Disabled requirement tests: 0.
+- Circular expected-value generators: 0 detected.
+- Mocked request/ffmpeg tests are backed by independent live probes against the real service.
+- The reconnect/re-auth invariant has both named state-transition tests and live preview-restart evidence.
 
-No orphaned requirements: all 5 STREAM IDs are claimed across the two plans and mapped to Phase 1 in REQUIREMENTS.md. Every ID accounted for.
+## Requirements Coverage
 
-### Anti-Patterns Found
+| Requirement | Source plan | Description | Status | Evidence |
+|-------------|-------------|-------------|--------|----------|
+| STREAM-01 | 01-02 | Capture video from two cameras through the proxy | ✓ SATISFIED | Live diagnostic produced real frames for both cameras; main started both channels. |
+| STREAM-02 | 01-02 | PHPSESSID + token + Referer authorization | ✓ SATISFIED | Live auth probe reports HTTP 200, PHPSESSID, per-camera token, authenticated ffmpeg frame, Overall PASS. |
+| STREAM-03 | 01-02 | Automatic reconnect and token refresh on session expiry | ✓ SATISFIED | Supervisor state transitions are tested; real preview completion produced a second ffmpeg start and resumed frames for each camera. |
+| STREAM-04 | 01-01 | Independent camera channels with camera_id tagging | ✓ SATISFIED | Separate cam_1/cam_2 diagnostic; tagging/isolation/feed tests pass. |
+| STREAM-05 | 01-01 | Extract frames for downstream analysis | ✓ SATISFIED | ffmpeg/JPEG decode produced real frames and data flows into FrameBuffer. |
+
+No orphaned Phase 1 requirements: all five STREAM IDs are claimed by the two plans and covered above.
+
+## Anti-Patterns Found
 
 | File | Line | Pattern | Severity | Impact |
-| ---- | ---- | ------- | -------- | ------ |
-| scripts/probe_privratnik_auth.py | 29-33, 144 | `_redact()` returns `"***"` for any non-empty value (IN-01a, not fixed) | ℹ️ Info | Probe prints only `***` for the response body — defeats its purpose of revealing the response shape it exists to discover |
-| scripts/probe_privratnik_auth.py | 113-122 | `proc.stdout.read(65536)` blocks with no read timeout (IN-01b, not fixed) | ℹ️ Info | On a silent stream the probe hangs instead of timing out at `seconds` |
-| src/capture/supervisor.py | 94 | reader thread `frame_q.put(frame)` unconditional (IN-03, not fixed) | ℹ️ Info | Queue maxsize=1; a slow downstream consumer could block the reader in put, ignoring reader_stop; currently masked by low frame rate |
+|------|------|---------|----------|--------|
+| `scripts/probe_capture_2_cameras.py` | 5-8 | Direct script-path invocation cannot import the repository-root `src` package | ℹ️ Info | Use `python -m scripts.probe_capture_2_cameras`; package/module entrypoints and production `src.main` are unaffected. |
+| `src/capture/supervisor.py` | 94 | Internal `frame_q.put(frame)` is unconditional on a size-1 queue | ℹ️ Info | Potential reader-thread stall only if the supervisor generator itself stops consuming; the phase buffer remains bounded/non-blocking, and no live or test evidence shows capture loss. |
+| `src/capture/auth.py`, `src/capture/stream_client.py` | module/function docstrings | Comments still label the now live-validated auth/framing contracts `[ASSUMED]` | ℹ️ Info | Documentation drift only; live evidence and active tests establish the contracts. |
 
-No debt markers (`TBD`/`FIXME`/`XXX`), no `placeholder`/`coming soon`/`not yet implemented`, and no hardcoded-empty stub patterns found in any phase source file. The 3 Info findings above are carried from the review and are non-blocking (they do not affect the 5 in-scope findings that were all fixed).
+Resolved anti-patterns from the prior review:
+- Probe over-redaction is fixed: response structure is preserved while token/password/PHPSESSID values are masked (`tests/test_probe.py`).
+- Probe ffmpeg timeout/hang risk is fixed with `-t` and `communicate(timeout=...)`; active tests cover timeout termination.
+- No unreferenced `TBD`, `FIXME`, or `XXX` debt markers exist in phase source/scripts/tests.
+- No current login/password credential value appears in a tracked non-planning file.
 
-### Review-Fix Verification (commit `e3a1a55`, confirmed in git history)
+## Decision Coverage
 
-All 5 in-scope findings were verified fixed directly in the source, not from the fix report:
+All **10/10** trackable `01-CONTEXT.md` decisions are honored by the shipped source, tests, or live probes. This gate is non-blocking and reported for traceability.
 
-- **CR-01 (critical, `-headers` double-injection):** `stream_headers_and_url` now returns a pure header `str` (`auth.py` L159-166); `build_ffmpeg_cmd` is the single emitter of `-headers` (`stream_client.py` L38-46). Regression guards pass.
-- **WR-01 (uncaught transport error kills thread):** `supervisor.py` L55 adds `requests.RequestException, OSError` to the caught set; `test_transport_error_does_not_kill_capture_loop` passes.
-- **WR-02 (stderr never drained):** `spawn_ffmpeg` attaches `_StderrDrain`; `_kill_proc` tears it down; drain tests pass.
-- **WR-03 (login body logged unredacted):** `auth.py` logs only `status/body_len/bodies_<count>`; redaction test passes.
-- **WR-04 (`?token=None`):** `auth.py` raises `AuthExpiredError` when token is `None`; raises-on-none tests pass.
+## Advisory (New Scope, Unevidenced)
 
-## Human Verification Required
+None. The direct probe invocation issue has deterministic evidence but is informational and does not affect a phase must-have or production entrypoint.
 
-The following require the real environment (user credentials, network access to privratnik.net, and ffmpeg installed on the host) and cannot be resolved by any automated check in this workspace:
+## Human Verification
 
-### 1. Real-stream auth validation (blocks truth #7 / STREAM-02)
-**Test:** Install ffmpeg on the host, create a gitignored `.env` with `PRIVRATNIK_LOGIN` / `PRIVRATNIK_PASSWORD` from the user's privratnik.net account, then run `python scripts/probe_privratnik_auth.py`.
-**Expected:** Step 1 login status <400; a PHPSESSID cookie is set; Step 2 extracts a non-empty stream token; Step 4 (if ffmpeg present) produces ≥1 frame; final `Overall: PASS`, exit 0.
-**Why human:** Requires real credentials + live network. Until this PASS is observed, the A1 auth contract remains `[ASSUMED]` and truth #7 stays failed.
-
-### 2. Two-camera continuous capture (SC1 / STREAM-01, STREAM-05)
-**Test:** With creds + ffmpeg installed, run `python -m src.main` for an extended window; confirm both `capture-cam_1` and `capture-cam_2` threads are started and that `FrameBuffer.pop()` returns camera-tagged frames for both cameras continuously (no silent death).
-**Expected:** Both cameras yield frames tagged with `cam_1`/`cam_2`; frames keep arriving; no permanent thread death.
-**Why human:** The MJPG decode path (A3) runs only against mocks here; actual OpenCV decode of a real stream requires ffmpeg on the host and a reachable camera stream.
-
-### 3. Reconnect/re-auth against real session expiry (STREAM-03)
-**Test:** With capture running, force the stream/token to expire (or simulate session loss) and observe the supervisor detect staleness, tear down ffmpeg, re-auth, and resume within the backoff window.
-**Expected:** The supervisor logs the stale/reconnect transitions and resumes producing frames automatically within a few seconds.
-**Why human:** Real session-expiry semantics (A2) can only be observed against a live stream; mocked tests prove the mechanics, not the real contract.
+None required. `01-UAT.md` is complete with 6/6 passing checks, and this re-verification independently reproduced the live auth, two-camera capture, and entrypoint smoke evidence.
 
 ## Gaps Summary
 
-The phase's architecture is complete, logically sound, and fully mocked-tested — but the phase goal is **not met as declared** because its own verification gate is outstanding:
-
-1. **BLOCKER — Auth flow not validated against the real stream.** The plan's `must_haves.truths` explicitly requires: *"The auth flow is validated against the real stream via a manual probe script before the full pipeline is trusted."* `scripts/probe_privratnik_auth.py` was never run (no `.env`, no credentials, ffmpeg absent). The A1 (login/token) and A3 (MJPG pipe-framing) contracts remain `[ASSUMED]`. Until a human runs the probe against a live stream and confirms PASS, the capture path cannot be trusted as "working auth" — and the roadmap SC2 clause "verified against the real stream, not just docs" is unmet. This is the sole FAILED truth driving `gaps_found`.
-
-This is a **human/user-gated** gap — it cannot be closed by code in this environment. The correct path to close it: install ffmpeg, populate a gitignored `.env` with real credentials, run the probe, and confirm PASS. Only then may Phase 2 build trust on this capture path.
+No remaining gaps. The prior live-probe blocker and both behavior-unverified items are closed; no new blocker, requirement gap, broken key link, stub, or test-quality blocker was found.
 
 ---
 
-_Verified: 2026-09-16_
-_Verifier: Claude (gsd-verifier)_
+_Verified: 2026-09-23T20:52:35Z_
+_Verifier: space-bunny-free (gsd-verifier)_
