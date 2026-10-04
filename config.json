@@ -5,6 +5,8 @@
   },
   "queue_size": 15,
   "capture_fps": 1.5,
+  "capture_mode": "snapshot",
+  "snapshot_fps": 2.0,
   "frame_stale_seconds": 12,
   "backoff_initial": 1.0,
   "backoff_max": 60.0,
