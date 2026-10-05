@@ -11,5 +11,16 @@
   "backoff_initial": 1.0,
   "backoff_max": 60.0,
   "ffmpeg_path": "ffmpeg",
-  "referer": "https://privratnik.net/files/video-control.php"
+  "referer": "https://privratnik.net/files/video-control.php",
+  "barrier": {
+    "enabled": false,
+    "references_dir": "data/references",
+    "rois_file": "data/references/rois.json",
+    "margin": 0.02,
+    "open_extent_ratio": 0.6,
+    "dwell_open": 2,
+    "dwell_closed": 4,
+    "bucket_threshold": 60.0,
+    "authoritative_camera": "cam_1"
+  }
 }
