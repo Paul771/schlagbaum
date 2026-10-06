@@ -4,6 +4,11 @@ No network and no recordings: a fake frame buffer and a scripted stub detector
 stand in for capture and for the real classifier. The consumer duck-types the
 buffer, which is what keeps ``src/detect/`` free of the capture package — that
 boundary is grep-gated by plan 02-01's verification.
+
+Barrier semantics (owner-confirmed on 2026-10-06): there are two physical
+barriers and each camera watches its own, so every consumer emits for its own
+barrier. The earlier "exactly one authoritative camera" semantics was removed
+as a recorded deviation.
 """
 
 import queue
@@ -16,7 +21,6 @@ import pytest
 from src.detect.barrier import ReferenceSet
 from src.detect.consumer import (
     BarrierConsumer,
-    authoritative_flags,
     build_consumers,
 )
 from src.detect.fsm import BarrierFSM, BarrierState, Observation
@@ -82,15 +86,13 @@ def open_sequence(count=3):
     return [Observation(BarrierState.OPEN) for _ in range(count)]
 
 
-def make_consumer(detector, camera_id="cam_1", emits_events=True,
-                  dwell_open=2, dwell_closed=4):
+def make_consumer(detector, camera_id="cam_1", dwell_open=2, dwell_closed=4):
     return BarrierConsumer(
         camera_id=camera_id,
         frame_buffer=FakeFrameBuffer(camera_id),
         detector=detector,
         fsm=BarrierFSM(dwell_open=dwell_open, dwell_closed=dwell_closed),
         stop_event=threading.Event(),
-        emits_events=emits_events,
     )
 
 
@@ -151,57 +153,16 @@ def test_raising_detector_does_not_kill_the_loop():
     assert [payload for _camera, payload in detector.calls] == [b"a", b"b", b"c", b"d"]
 
 
-def test_two_authoritative_cameras_are_rejected():
-    """BARRIER-03: exactly one consumer may emit open events."""
-    flags = authoritative_flags(["cam_1", "cam_2"], "cam_1")
-    assert flags == {"cam_1": True, "cam_2": False}
-    assert sum(flags.values()) == 1
-
-    with pytest.raises(ValueError, match="authoritative"):
-        authoritative_flags(["cam_1", "cam_2"], ["cam_1", "cam_2"])
-    with pytest.raises(ValueError, match="authoritative"):
-        authoritative_flags(["cam_1", "cam_2"], ["cam_1", "cam_2", "cam_3"])
-    with pytest.raises(ValueError, match="authoritative"):
-        authoritative_flags(["cam_1", "cam_2"], None)
-    with pytest.raises(ValueError, match="not a configured camera"):
-        authoritative_flags(["cam_1", "cam_2"], "cam_9")
-
-
-def test_non_authoritative_camera_counts_but_never_emits():
+def test_every_camera_emits_for_its_own_barrier():
+    """Two barriers, one camera each: no camera is muted — the second
+    camera's FSM commits its own OPEN exactly like the first camera's."""
     detector = StubDetector(open_sequence(3))
-    consumer = make_consumer(detector, camera_id="cam_2", emits_events=False)
+    consumer = make_consumer(detector, camera_id="cam_2")
     consumer.start()
     drain(consumer, [b"a", b"b", b"c"])
 
-    assert consumer.transitions == []          # nothing for Phase 3 to read
-    assert consumer.diagnostic_opens == 1      # still visible as a health signal
+    assert len(consumer.transitions) == 1
     assert consumer.current_state is BarrierState.OPEN
-
-
-def test_peer_disagreement_is_a_warning_not_an_event():
-    authoritative = make_consumer(StubDetector(open_sequence(3)), emits_events=True)
-    peer = make_consumer(StubDetector([]), camera_id="cam_2", emits_events=False)
-    authoritative.attach_peer(peer)
-    # peer never saw the opening, so it is still CLOSED when we commit OPEN
-    authoritative.start()
-    drain(authoritative, [b"a", b"b", b"c"])
-
-    assert len(authoritative.transitions) == 1
-    assert authoritative.cross_check == 1
-    assert authoritative.disagreements == 1
-
-
-def test_peer_agreement_is_counted_without_disagreement():
-    authoritative = make_consumer(StubDetector(open_sequence(3)), emits_events=True)
-    peer = make_consumer(StubDetector([]), camera_id="cam_2", emits_events=False)
-    peer.current_state = BarrierState.OPEN    # sibling saw the same opening
-    authoritative.attach_peer(peer)
-    authoritative.start()
-    drain(authoritative, [b"a", b"b", b"c"])
-
-    assert len(authoritative.transitions) == 1
-    assert authoritative.cross_check == 1
-    assert authoritative.disagreements == 0
 
 
 def test_build_consumers_reads_the_whole_barrier_block(tmp_path):
@@ -215,16 +176,13 @@ def test_build_consumers_reads_the_whole_barrier_block(tmp_path):
         "dwell_open": 3,
         "dwell_closed": 5,
         "bucket_threshold": 55.0,
-        "authoritative_camera": "cam_2",
     }}
     buffers = {"cam_1": FakeFrameBuffer("cam_1"), "cam_2": FakeFrameBuffer("cam_2")}
     consumers = build_consumers(settings, buffers, threading.Event())
 
-    assert len(consumers) == 2
+    assert len(consumers) == 2                      # one consumer per camera
     by_id = {consumer.camera_id: consumer for consumer in consumers}
-    assert sum(consumer.emits_events for consumer in consumers) == 1
-    assert by_id["cam_2"].emits_events is True
-    assert by_id["cam_1"].emits_events is False
+    assert set(by_id) == {"cam_1", "cam_2"}
 
     detector = by_id["cam_1"].detector
     assert detector.margin == pytest.approx(0.07)
@@ -232,8 +190,6 @@ def test_build_consumers_reads_the_whole_barrier_block(tmp_path):
     assert detector.bucket_threshold == pytest.approx(55.0)
     assert by_id["cam_1"].fsm.dwell_open == 3
     assert by_id["cam_1"].fsm.dwell_closed == 5
-    assert by_id["cam_1"].peer is by_id["cam_2"]
-    assert by_id["cam_2"].peer is by_id["cam_1"]
 
 
 def test_build_consumers_degrades_gracefully(tmp_path):
@@ -248,6 +204,5 @@ def test_build_consumers_degrades_gracefully(tmp_path):
         "enabled": True,
         "references_dir": str(missing),
         "rois_file": str(missing / "rois.json"),
-        "authoritative_camera": "cam_1",
     }}
     assert build_consumers(settings, buffers, threading.Event()) == []

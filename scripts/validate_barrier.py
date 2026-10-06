@@ -7,9 +7,9 @@ camera's ``BarrierFSM``, counting emitted open events.
 
 It deliberately mirrors runtime behaviour:
 
-* only the camera named by ``barrier.authoritative_camera`` may emit — the
-  sibling camera's opens are counted as diagnostics, never as events, because
-  two emitting FSMs would double-count one physical opening (BARRIER-03);
+* every configured camera emits — each camera watches its own physical
+  barrier (two-barrier ground truth confirmed by the owner on 2026-10-06),
+  so a GATE_OPEN_LABELS session is judged per camera, not cross-camera;
 * each session gets a fresh FSM, so state never leaks between sessions that
   were recorded hours apart;
 * an ``UNKNOWN`` observation is fed straight through: refusing to classify is
@@ -38,7 +38,6 @@ import cv2
 
 from src.config import load_settings
 from src.detect.barrier import BarrierDetector, ReferenceSet, bucket_for, mean_brightness
-from src.detect.consumer import authoritative_flags
 from src.detect.fsm import BarrierFSM, BarrierState
 
 #: Labels where an open event is a FALSE POSITIVE. The plan gates these at 0.
@@ -80,7 +79,7 @@ def load_references(references_dir):
         raise SystemExit("references at %s are unusable (%s)" % (references_dir, exc))
 
 
-def replay_session(session_dir, manifest, references, cfg, flags):
+def replay_session(session_dir, manifest, references, cfg):
     """Replay one session; return per-camera results.
 
     Frames are replayed in timestamp order per camera, exactly as they arrived
@@ -103,10 +102,8 @@ def replay_session(session_dir, manifest, references, cfg, flags):
         records.sort(key=lambda r: (r.get("ts", ""), r.get("index", 0)))
 
         emitted = []
-        diagnostics = 0
         unreadable = 0
         buckets = defaultdict(lambda: {"frames": 0, "unknown": 0, "events": 0})
-        authoritative = bool(flags.get(camera_id))
 
         for position, record in enumerate(records):
             path = os.path.join(session_dir, record["file"])
@@ -125,26 +122,20 @@ def replay_session(session_dir, manifest, references, cfg, flags):
             for event in fsm.update(observation):
                 if not event.emits_event:
                     continue
-                if authoritative:
-                    emitted.append({
-                        "camera_id": camera_id,
-                        "index": record.get("index"),
-                        "ts": record.get("ts"),
-                        "position": position,
-                        "bucket": bucket,
-                    })
-                    buckets[bucket]["events"] += 1
-                else:
-                    # Seen, counted, deliberately not emitted (BARRIER-03).
-                    diagnostics += 1
+                emitted.append({
+                    "camera_id": camera_id,
+                    "index": record.get("index"),
+                    "ts": record.get("ts"),
+                    "position": position,
+                    "bucket": bucket,
+                })
+                buckets[bucket]["events"] += 1
 
         cameras[camera_id] = {
-            "authoritative": authoritative,
             "frames": len(records),
             "unreadable": unreadable,
             "unknown": sum(b["unknown"] for b in buckets.values()),
             "emitted": emitted,
-            "diagnostics": diagnostics,
             "buckets": {name: dict(vals) for name, vals in sorted(buckets.items())},
             "final_state": fsm.state.value,
         }
@@ -175,9 +166,9 @@ def evaluate(results):
                 for event in info["emitted"]:
                     false_openings.append((label, camera_id, event))
 
-            # Detection is judged on the authoritative camera only — that is
-            # what actually runs (BARRIER-03).
-            if label in GATE_OPEN_LABELS and info["authoritative"]:
+            # Every camera is the authority of its own barrier: an
+            # open-labelled session must produce an OPEN on every camera.
+            if label in GATE_OPEN_LABELS:
                 if info["emitted"]:
                     first = min(e["position"] for e in info["emitted"])
                     latencies.append((label, camera_id, first))
@@ -200,19 +191,15 @@ def evaluate(results):
 
 def report(results, evaluation, stream=sys.stdout):
     """Print the per-session table and the gated summary."""
-    print("session\tlabel\tframes\temitted\tunknown\tdiagnostic\tauthoritative", file=stream)
+    print("session\tlabel\tframes\temitted\tunknown", file=stream)
     for label, session_dir, _manifest, cameras in results:
         frames = sum(i["frames"] for i in cameras.values())
         emitted = sum(len(i["emitted"]) for i in cameras.values())
         unknown = sum(i["unknown"] for i in cameras.values())
-        diagnostics = sum(i["diagnostics"] for i in cameras.values())
-        authoritative = ",".join(sorted(
-            cid for cid, info in cameras.items() if info["authoritative"]
-        )) or "-"
         percent = (100.0 * unknown / frames) if frames else 0.0
-        print("%s\t%s\t%d\t%d\t%d (%.1f%%)\t%d\t%s" % (
+        print("%s\t%s\t%d\t%d\t%d (%.1f%%)" % (
             os.path.basename(session_dir), label, frames, emitted, unknown,
-            percent, diagnostics, authoritative,
+            percent,
         ), file=stream)
 
     print("", file=stream)
@@ -278,17 +265,10 @@ def main(argv=None):
         return 2
 
     references = load_references(references_dir)
-    camera_ids = sorted({camera_id for _path, manifest in sessions
-                         for camera_id in manifest.get("cameras", {})})
-    try:
-        flags = authoritative_flags(camera_ids, cfg.get("authoritative_camera"))
-    except ValueError as exc:
-        print(str(exc), file=sys.stderr)
-        return 2
 
     results = []
     for session_dir, manifest in sessions:
-        cameras = replay_session(session_dir, manifest, references, cfg, flags)
+        cameras = replay_session(session_dir, manifest, references, cfg)
         results.append((manifest.get("label", "?"), session_dir, manifest, cameras))
 
     evaluation = evaluate(results)
@@ -310,7 +290,6 @@ def main(argv=None):
             "closed_hours": evaluation["closed_hours"],
             "false_openings_per_hour": evaluation["false_openings_per_hour"],
             "buckets": evaluation["buckets"],
-            "authoritative_flags": flags,
         }, indent=2))
     else:
         report(results, evaluation)

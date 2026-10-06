@@ -10,9 +10,10 @@ FrameBuffer (D-09/D-10).
 
 Phase 2 additionally starts one ``BarrierConsumer`` daemon thread per camera
 when ``barrier.enabled`` is set and the references load. Each consumer owns its
-thread because ``FrameBuffer.pop()`` blocks; exactly one of them is
-authoritative for barrier events (BARRIER-03). Missing references degrade to
-capture-only rather than taking the service down.
+thread because ``FrameBuffer.pop()`` blocks; every camera watches its own
+barrier and emits for it — two physical barriers, one camera each, so the
+duplicate-event guard is the FSM re-arm flag (BARRIER-03). Missing references
+degrade to capture-only rather than taking the service down.
 """
 
 import logging
