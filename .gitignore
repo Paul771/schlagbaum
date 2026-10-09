@@ -22,3 +22,7 @@ __pycache__/
 # Claude Code session/handoff runtime state (machine-local)
 .claude/sessions/
 .claude/state/
+
+# GSD research cache and scratch dirs
+.planning/research/.cache/
+.planning/tmp/
