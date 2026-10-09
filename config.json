@@ -5,9 +5,21 @@
   },
   "queue_size": 15,
   "capture_fps": 1.5,
+  "capture_mode": "snapshot",
+  "snapshot_fps": 2.0,
   "frame_stale_seconds": 12,
   "backoff_initial": 1.0,
   "backoff_max": 60.0,
   "ffmpeg_path": "ffmpeg",
-  "referer": "https://privratnik.net/files/video-control.php"
+  "referer": "https://privratnik.net/files/video-control.php",
+  "barrier": {
+    "enabled": false,
+    "references_dir": "data/references",
+    "rois_file": "data/references/rois.json",
+    "margin": 0.02,
+    "open_extent_ratio": 0.6,
+    "dwell_open": 2,
+    "dwell_closed": 4,
+    "bucket_threshold": 60.0
+  }
 }

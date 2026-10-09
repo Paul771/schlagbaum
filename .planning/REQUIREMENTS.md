@@ -9,11 +9,11 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Захват потока (Stream Client)
 
-- [ ] **STREAM-01**: Система получает видеопоток с двух камер через `privratnik.net` proxy URL
-- [ ] **STREAM-02**: Система поддерживает авторизацию (PHPSESSID cookie + token + Referer) для доступа к потоку
-- [ ] **STREAM-03**: Система автоматически переподключается и обновляет токен при истечении сессии
-- [ ] **STREAM-04**: Каждая камера работает как независимый канал захвата, события тегируются camera_id
-- [ ] **STREAM-05**: Система извлекает кадры из потока для последующего анализа
+- [x] **STREAM-01**: Система получает видеопоток с двух камер через `privratnik.net` proxy URL
+- [x] **STREAM-02**: Система поддерживает авторизацию (PHPSESSID cookie + token + Referer) для доступа к потоку
+- [x] **STREAM-03**: Система автоматически переподключается и обновляет токен при истечении сессии
+- [x] **STREAM-04**: Каждая камера работает как независимый канал захвата, события тегируются camera_id
+- [x] **STREAM-05**: Система извлекает кадры из потока для последующего анализа
 
 ### Детекция шлагбаума (Barrier State Detector)
 
@@ -84,11 +84,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| STREAM-01 | Phase 1 | Gaps Found |
-| STREAM-02 | Phase 1 | Gaps Found |
-| STREAM-03 | Phase 1 | Gaps Found |
-| STREAM-04 | Phase 1 | Gaps Found |
-| STREAM-05 | Phase 1 | Gaps Found |
+| STREAM-01 | Phase 1 | Complete |
+| STREAM-02 | Phase 1 | Complete |
+| STREAM-03 | Phase 1 | Complete |
+| STREAM-04 | Phase 1 | Complete |
+| STREAM-05 | Phase 1 | Complete |
 | BARRIER-01 | Phase 2 | Pending |
 | BARRIER-02 | Phase 2 | Pending |
 | BARRIER-03 | Phase 2 | Pending |
@@ -116,4 +116,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-09-09*
-*Last updated: 2026-09-09 after roadmap creation*
+*Last updated: 2026-10-04 after Phase 1 completion (STREAM-01..05 validated)*

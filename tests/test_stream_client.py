@@ -38,7 +38,7 @@ def test_build_ffmpeg_cmd_shape():
     assert cmd[2] == headers  # the -headers option value is pure header content
     assert "-f" in cmd and cmd[cmd.index("-f") + 1] == "image2pipe"
     assert "-vcodec" in cmd and cmd[cmd.index("-vcodec") + 1] == "mjpeg"
-    assert "-vf" in cmd and cmd[cmd.index("-vf") + 1] == "fps=1.5"
+    assert "-vf" in cmd and cmd[cmd.index("-vf") + 1] == "fps=1.5:round=up"
     assert cmd[-1] == "-"
 
 

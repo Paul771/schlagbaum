@@ -39,7 +39,7 @@ def build_ffmpeg_cmd(cam_url, headers, fps_output=1.5):
         "ffmpeg",
         "-headers", headers,
         "-i", cam_url,
-        "-vf", f"fps={fps_output}",  # 1-2 fps limit (D-08) — reduces wasteful decode
+        "-vf", f"fps={fps_output}:round=up",  # 1-2 fps limit (D-08) — reduces wasteful decode
         "-f", "image2pipe",  # D-05: JPEG via pipe
         "-vcodec", "mjpeg",
         "-",

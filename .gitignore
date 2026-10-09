@@ -18,5 +18,11 @@ __pycache__/
 .gsd/
 .planning/milestone.lock
 .planning/state.json
+
+# Claude Code session/handoff runtime state (machine-local)
+.claude/sessions/
+.claude/state/
+
+# GSD research cache and scratch dirs
 .planning/research/.cache/
 .planning/tmp/

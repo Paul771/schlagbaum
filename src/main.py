@@ -1,10 +1,19 @@
-"""Entrypoint: wire 2 cameras' capture pipeline (STREAM-01..05).
+"""Entrypoint: wire 2 cameras' capture pipeline (STREAM-01..05) + barrier detection (BARRIER-01..04).
 
-Loads settings, pre-flights ffmpeg, instantiates one FrameBuffer per camera,
-and starts a supervisor thread per camera. Each supervisor yields frames that
-``feed_frames`` pushes into the camera's bounded drop-oldest FrameBuffer
-(D-09/D-10). The FrameBuffer.pop() integration point is exposed for Phase 2
-consumers but not consumed here.
+Loads settings, instantiates one FrameBuffer per camera, and starts one capture
+thread per camera. ``capture_mode`` selects the source: ``"snapshot"`` polls
+the single-frame ``preview.mp4`` endpoint in-process (see
+``src/capture/snapshot.py`` — no ffmpeg needed), while ``"ffmpeg"`` uses the
+original supervisor + ffmpeg-subprocess stream path. Either way each yielded
+frame is pushed by ``feed_frames`` into the camera's bounded drop-oldest
+FrameBuffer (D-09/D-10).
+
+Phase 2 additionally starts one ``BarrierConsumer`` daemon thread per camera
+when ``barrier.enabled`` is set and the references load. Each consumer owns its
+thread because ``FrameBuffer.pop()`` blocks; every camera watches its own
+barrier and emits for it — two physical barriers, one camera each, so the
+duplicate-event guard is the FSM re-arm flag (BARRIER-03). Missing references
+degrade to capture-only rather than taking the service down.
 """
 
 import logging
@@ -17,6 +26,7 @@ from src.capture.frame_buffer import FrameBuffer
 from src.capture.stream_client import build_ffmpeg_cmd, spawn_ffmpeg
 from src.capture.supervisor import run_capture_with_supervisor
 from src.config import load_settings
+from src.detect.consumer import build_consumers
 
 logger = logging.getLogger(__name__)
 
@@ -57,9 +67,12 @@ def main():
     logging.basicConfig(level=logging.INFO)
     settings = load_settings()
 
-    _preflight_ffmpeg(settings)
+    capture_mode = settings.get("capture_mode", "ffmpeg")
+    if capture_mode != "snapshot":
+        _preflight_ffmpeg(settings)  # snapshot mode decodes in-process, no ffmpeg
 
     queue_size = settings.get("queue_size", 15)
+    snapshot_fps = settings.get("snapshot_fps", 2.0)
     capture_fps = settings.get("capture_fps", 1.5)
     frame_stale_seconds = settings.get("frame_stale_seconds", 12)
     backoff_initial = settings.get("backoff_initial", 1.0)
@@ -75,39 +88,62 @@ def main():
         frame_buffer = FrameBuffer(camera_id, maxsize=queue_size)
         buffers[camera_id] = frame_buffer
 
-        def start(url, headers, _fps=capture_fps):
-            cmd = build_ffmpeg_cmd(url, headers, fps_output=_fps)
-            return spawn_ffmpeg(cmd)
+        if capture_mode == "snapshot":
+            from src.capture.snapshot import SnapshotPoller
 
-        supervisor = run_capture_with_supervisor(
-            start,
-            stop_event,
-            session_mgr,
-            camera_id,
-            cam_url,
-            frame_stale_seconds=frame_stale_seconds,
-            backoff_initial=backoff_initial,
-            backoff_max=backoff_max,
-        )
+            poller = SnapshotPoller(settings, camera_id, cam_url, session_mgr)
+            frames = poller.frames(
+                stop_event,
+                target_fps=snapshot_fps,
+                frame_stale_seconds=frame_stale_seconds,
+                backoff_initial=backoff_initial,
+                backoff_max=backoff_max,
+            )
+        else:
+
+            def start(url, headers, _fps=capture_fps):
+                cmd = build_ffmpeg_cmd(url, headers, fps_output=_fps)
+                return spawn_ffmpeg(cmd)
+
+            frames = run_capture_with_supervisor(
+                start,
+                stop_event,
+                session_mgr,
+                camera_id,
+                cam_url,
+                frame_stale_seconds=frame_stale_seconds,
+                backoff_initial=backoff_initial,
+                backoff_max=backoff_max,
+            )
         thread = threading.Thread(
             target=feed_frames,
-            args=(supervisor, frame_buffer),
+            args=(frames, frame_buffer),
             name=f"capture-{camera_id}",
             daemon=True,
         )
         thread.start()
         threads.append(thread)
-        logger.info("started capture thread for camera=%s", camera_id)
+        logger.info("started capture thread for camera=%s (mode=%s)", camera_id, capture_mode)
+
+    # Phase 2: one barrier consumer thread per camera. Returns [] when detection
+    # is disabled or the references are missing, so capture always keeps running.
+    consumers = build_consumers(settings, buffers, stop_event)
+    for consumer in consumers:
+        consumer.start()
 
     try:
-        # Block until interrupted. FrameBuffer.pop() is the Phase 2 integration
-        # point; it is exposed but not consumed here.
+        # Block until interrupted. Capture threads feed the FrameBuffer;
+        # BarrierConsumer threads (one per camera) drain it.
         while not stop_event.is_set():
             stop_event.wait(1.0)
     except KeyboardInterrupt:
         logger.info("interrupt received; shutting down")
     finally:
         stop_event.set()
+        for consumer in consumers:
+            # pop() blocks, so give each consumer a frame-sized window to notice
+            # stop_event rather than waiting forever on a quiet camera.
+            consumer.join(timeout=1.0)
         for thread in threads:
             thread.join(timeout=5.0)
         logger.info("shutdown complete")

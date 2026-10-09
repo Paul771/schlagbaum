@@ -12,11 +12,10 @@
 
 ### Validated
 
-(None yet — ship to validate)
+- ✓ Получать видеопоток с двух камер через `privratnik.net` (авторизация + токен) — Phase 1 (live-validated: probe PASS, 2-camera capture 1280×720, auto re-auth recovery)
 
 ### Active
 
-- [ ] Получать видеопоток с двух камер через `privratnik.net` (авторизация + токен)
 - [ ] Детектировать открытие/закрытие шлагбаума по кадрам
 - [ ] Обнаруживать автомобиль в кадре
 - [ ] Распознавать государственный номер автомобиля (внешний OCR-сервис)
@@ -54,7 +53,7 @@
 |----------|-----------|---------|
 | Локальная SQLite-БД вместо облачной | Простота, автономность, отсутствие внешних зависимостей для MVP | — Pending |
 | Внешний OCR-сервис для номеров | Высокая точность без обучения собственной модели | — Pending |
-| Захват кадров через ffmpeg | Универсальная поддержка форматов, низкая задержка | — Pending |
+| Захват кадров через ffmpeg | Универсальная поддержка форматов, низкая задержка | ✓ Phase 1 (ffmpeg subprocess, image2pipe MJPG, fps round=up) |
 | Информирование отложено | Не требуется для MVP, добавят позже | — Pending |
 
 ## Evolution
@@ -75,4 +74,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-09-09 after initialization*
+*Last updated: 2026-10-04 after Phase 1*
