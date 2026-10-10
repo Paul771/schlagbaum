@@ -37,7 +37,8 @@ from collections import defaultdict
 import cv2
 
 from src.config import load_settings
-from src.detect.barrier import BarrierDetector, ReferenceSet, bucket_for, mean_brightness
+from src.detect.barrier import (BarrierDetector, PictureDedup, ReferenceSet,
+                                mean_brightness)
 from src.detect.fsm import BarrierFSM, BarrierState
 
 #: Labels where an open event is a FALSE POSITIVE. The plan gates these at 0.
@@ -86,16 +87,19 @@ def replay_session(session_dir, manifest, references, cfg):
     from the feed — the FSM needs temporal order to do its job at 1.5 fps.
     """
     threshold = float(cfg.get("bucket_threshold", 60.0))
-    margin = float(cfg.get("margin", 0.15))
+    margin = float(cfg.get("margin", 0.02))
     open_extent_ratio = float(cfg.get("open_extent_ratio", 0.64))
     cameras = {}
 
     for camera_id in manifest.get("cameras", {}):
-        detector = BarrierDetector(references, margin=margin,
-                                   open_extent_ratio=open_extent_ratio,
-                                   bucket_threshold=threshold)
-        fsm = BarrierFSM(dwell_open=int(cfg.get("dwell_open", 2)),
-                         dwell_closed=int(cfg.get("dwell_closed", 4)))
+        detector = BarrierDetector(
+            references, margin=margin, open_extent_ratio=open_extent_ratio,
+            bucket_threshold=threshold,
+            bucket_window=int(cfg.get("bucket_window", 1)),
+            bucket_hysteresis=float(cfg.get("bucket_hysteresis", 0.0)))
+        dedup = PictureDedup()
+        fsm = BarrierFSM(dwell_open=int(cfg.get("dwell_open", 1)),
+                         dwell_closed=int(cfg.get("dwell_closed", 3)))
 
         records = [r for r in manifest.get("frames", [])
                    if r.get("camera_id") == camera_id]
@@ -112,10 +116,14 @@ def replay_session(session_dir, manifest, references, cfg):
                 unreadable += 1
                 continue
 
-            bucket = bucket_for(mean_brightness(frame), threshold)
-            buckets[bucket]["frames"] += 1
+            # Same gate as the runtime consumer: a re-delivered picture is not
+            # new evidence and must not advance dwell or re-arm the FSM.
+            if not dedup.is_new(frame):
+                continue
 
             observation = detector.classify(camera_id, frame)
+            bucket = detector.last_bucket.get(camera_id, "day")
+            buckets[bucket]["frames"] += 1
             if observation.state is BarrierState.UNKNOWN:
                 buckets[bucket]["unknown"] += 1
 

@@ -25,6 +25,7 @@ operator's 1280x720 picks into that space.
 import json
 import logging
 import os
+from collections import deque
 from dataclasses import dataclass
 
 import cv2
@@ -38,6 +39,7 @@ __all__ = [
     "mean_brightness",
     "preprocess",
     "bucket_for",
+    "PictureDedup",
     "ReferenceSet",
     "BarrierDetector",
     "Observation",
@@ -82,6 +84,32 @@ def preprocess(frame) -> np.ndarray:
 def bucket_for(brightness: float, threshold: float = 60.0) -> str:
     """Pick the lighting bucket for a frame's mean brightness."""
     return "day" if brightness >= threshold else "night"
+
+
+class PictureDedup:
+    """Tell a genuinely new camera picture from a re-delivered one.
+
+    The cameras refresh their picture only every ~8-9 s (day and night), while
+    the poller delivers ~2 frames/s, so one picture arrives ~16 times in a row.
+    Anything that counts frames (dwell, re-arm) must count *pictures* instead,
+    otherwise a single noisy picture satisfies any dwell and defeats the
+    duplicate-event guard. Compared on a tiny grey thumbnail; re-encoded copies
+    of one picture differ by ~0.1-0.3 grey levels, a new picture by far more.
+    """
+
+    THUMB_SIZE = (160, 90)
+
+    def __init__(self, threshold: float = 0.8):
+        self.threshold = float(threshold)
+        self._last = None
+
+    def is_new(self, frame) -> bool:
+        thumb = cv2.resize(_as_gray(frame), self.THUMB_SIZE,
+                           interpolation=cv2.INTER_AREA)
+        last, self._last = self._last, thumb
+        if last is None:
+            return True
+        return float(np.mean(cv2.absdiff(thumb, last))) >= self.threshold
 
 
 @dataclass(frozen=True)
@@ -161,14 +189,47 @@ class ReferenceSet:
 class BarrierDetector:
     """Classify one snapshot as CLOSED / OPEN / UNKNOWN."""
 
-    def __init__(self, references: ReferenceSet, margin: float = 0.15,
+    def __init__(self, references: ReferenceSet, margin: float = 0.02,
                  open_extent_ratio: float = 0.64, bucket_threshold: float = 60.0,
-                 min_content_ratio: float = 0.25):
+                 min_content_ratio: float = 0.25, bucket_window: int = 1,
+                 bucket_hysteresis: float = 0.0):
         self.references = references
+        self.bucket_window = max(1, int(bucket_window))
+        self.bucket_hysteresis = float(bucket_hysteresis)
+        self._brightness = {}
+        self._bucket_state = {}
+        #: Bucket chosen for each camera's latest picture (diagnostics).
+        self.last_bucket = {}
         self.margin = float(margin)
         self.open_extent_ratio = float(open_extent_ratio)
         self.bucket_threshold = float(bucket_threshold)
         self.min_content_ratio = float(min_content_ratio)
+
+    def _bucket(self, camera_id: str, brightness: float) -> str:
+        """Lighting bucket, optionally smoothed per camera.
+
+        With ``bucket_window == 1`` this is the plain threshold. Otherwise the
+        median of the last ``bucket_window`` pictures is compared against the
+        threshold with a hysteresis band, so a headlight flash (mean 90 amid
+        105) or an exposure flicker around the threshold does not flip the
+        reference set for one picture. Call once per NEW picture only.
+        """
+        if self.bucket_window <= 1:
+            return bucket_for(brightness, self.bucket_threshold)
+        history = self._brightness.setdefault(
+            camera_id, deque(maxlen=self.bucket_window))
+        history.append(brightness)
+        level = float(np.median(history))
+        current = self._bucket_state.get(camera_id)
+        threshold = self.bucket_threshold
+        if current is None:
+            current = bucket_for(level, threshold)
+        elif current == "day" and level < threshold - self.bucket_hysteresis:
+            current = "night"
+        elif current == "night" and level >= threshold + self.bucket_hysteresis:
+            current = "day"
+        self._bucket_state[camera_id] = current
+        return current
 
     def _distance(self, edges, camera_id, bucket, kind) -> float:
         x, y, w, h = self.references.roi(camera_id, kind)
@@ -211,7 +272,8 @@ class BarrierDetector:
         if frame is None or getattr(frame, "size", 0) == 0:
             raise ValueError("empty frame passed to classify(camera=%s)" % camera_id)
 
-        bucket = bucket_for(mean_brightness(frame), self.bucket_threshold)
+        bucket = self._bucket(camera_id, mean_brightness(frame))
+        self.last_bucket[camera_id] = bucket
         if not self.references.has(camera_id, bucket):
             logger.debug("camera=%s has no %s reference; UNKNOWN", camera_id, bucket)
             return Observation(BarrierState.UNKNOWN, 0.0, _MISSING_REFERENCE)

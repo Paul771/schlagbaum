@@ -33,7 +33,7 @@ import logging
 import os
 import threading
 
-from src.detect.barrier import BarrierDetector, ReferenceSet
+from src.detect.barrier import BarrierDetector, PictureDedup, ReferenceSet
 from src.detect.fsm import BarrierFSM
 
 __all__ = ["BarrierConsumer", "build_consumers"]
@@ -58,6 +58,11 @@ class BarrierConsumer:
         self.processed = 0
         #: Frames where ``classify()`` raised; the loop carries on regardless.
         self.errors = 0
+        #: Re-delivered copies of the previous picture (not classified).
+        self.repeats = 0
+        # The cameras refresh every ~8 s but are polled ~2x/s, so most frames
+        # are repeats; dwell must count pictures, not frames.
+        self._dedup = PictureDedup()
 
         self._thread = None
 
@@ -93,6 +98,9 @@ class BarrierConsumer:
 
     def _handle(self, frame):
         try:
+            if not self._dedup.is_new(frame.data):
+                self.repeats += 1
+                return
             observation = self.detector.classify(self.camera_id, frame.data)
         except Exception:
             # One malformed snapshot must not stop detection (T-02-08).
@@ -154,13 +162,15 @@ def build_consumers(settings, buffers, stop_event):
     for camera_id, frame_buffer in buffers.items():
         detector = BarrierDetector(
             references,
-            margin=float(cfg.get("margin", 0.15)),
+            margin=float(cfg.get("margin", 0.02)),
             open_extent_ratio=float(cfg.get("open_extent_ratio", 0.64)),
             bucket_threshold=float(cfg.get("bucket_threshold", 60.0)),
+            bucket_window=int(cfg.get("bucket_window", 1)),
+            bucket_hysteresis=float(cfg.get("bucket_hysteresis", 0.0)),
         )
         fsm = BarrierFSM(
-            dwell_open=int(cfg.get("dwell_open", 2)),
-            dwell_closed=int(cfg.get("dwell_closed", 4)),
+            dwell_open=int(cfg.get("dwell_open", 1)),
+            dwell_closed=int(cfg.get("dwell_closed", 3)),
         )
         consumers.append(
             BarrierConsumer(camera_id, frame_buffer, detector, fsm, stop_event)

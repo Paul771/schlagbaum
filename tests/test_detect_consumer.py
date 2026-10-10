@@ -67,15 +67,24 @@ class StubDetector:
         return Observation(BarrierState.UNKNOWN)
 
 
+def picture(tag):
+    """A flat grey frame; distinct tags differ by far more than the dedup gate."""
+    return np.full((90, 160), 40 * tag, dtype=np.uint8)
+
+
+def tag_of(data):
+    return int(data[0, 0]) // 40
+
+
 class ExplodingDetector(StubDetector):
-    """Raises on selected payloads; used to prove the loop survives them."""
+    """Raises on selected pictures (by tag); proves the loop survives them."""
 
     def __init__(self, boom_on, plan=()):
         super().__init__(plan)
         self.boom_on = set(boom_on)
 
     def classify(self, camera_id, data):
-        if data in self.boom_on:
+        if tag_of(data) in self.boom_on:
             self.calls.append((camera_id, data))
             raise RuntimeError("synthetic classify failure")
         return super().classify(camera_id, data)
@@ -132,9 +141,10 @@ def test_frames_are_drained_in_order_and_current_state_advances():
     detector = StubDetector(open_sequence(3))
     consumer = make_consumer(detector)
     consumer.start()
-    drain(consumer, [b"a", b"b", b"c"])
+    drain(consumer, [picture(1), picture(2), picture(3)])
 
-    assert detector.calls == [("cam_1", b"a"), ("cam_1", b"b"), ("cam_1", b"c")]
+    assert [(c, tag_of(d)) for c, d in detector.calls] == [
+        ("cam_1", 1), ("cam_1", 2), ("cam_1", 3)]
     assert consumer.current_state is BarrierState.OPEN
     assert len(consumer.transitions) == 1
     assert consumer.transitions[0].emits_event is True
@@ -142,15 +152,15 @@ def test_frames_are_drained_in_order_and_current_state_advances():
 
 
 def test_raising_detector_does_not_kill_the_loop():
-    detector = ExplodingDetector(boom_on={b"b"}, plan=open_sequence(3))
+    detector = ExplodingDetector(boom_on={2}, plan=open_sequence(3))
     consumer = make_consumer(detector)
     consumer.start()
-    drain(consumer, [b"a", b"b", b"c", b"d"])
+    drain(consumer, [picture(1), picture(2), picture(3), picture(4)])
 
     assert consumer.errors == 1
     assert consumer.processed == 4
     # frames queued behind the failure were still handed to the detector
-    assert [payload for _camera, payload in detector.calls] == [b"a", b"b", b"c", b"d"]
+    assert [tag_of(d) for _camera, d in detector.calls] == [1, 2, 3, 4]
 
 
 def test_every_camera_emits_for_its_own_barrier():
@@ -159,10 +169,27 @@ def test_every_camera_emits_for_its_own_barrier():
     detector = StubDetector(open_sequence(3))
     consumer = make_consumer(detector, camera_id="cam_2")
     consumer.start()
-    drain(consumer, [b"a", b"b", b"c"])
+    drain(consumer, [picture(1), picture(2), picture(3)])
 
     assert len(consumer.transitions) == 1
     assert consumer.current_state is BarrierState.OPEN
+
+
+def test_redelivered_picture_is_not_new_evidence():
+    """The cameras repeat one picture ~16x; dwell must count pictures.
+
+    Sixteen copies of ONE open picture must not commit an opening, and a
+    second distinct picture is still needed (BARRIER-03 on real cadence).
+    """
+    detector = StubDetector(open_sequence(10))
+    consumer = make_consumer(detector)
+    consumer.start()
+    drain(consumer, [picture(1)] * 16)
+
+    assert len(detector.calls) == 1
+    assert consumer.repeats == 15
+    assert consumer.current_state is BarrierState.OPENING
+    assert consumer.transitions == []
 
 
 def test_build_consumers_reads_the_whole_barrier_block(tmp_path):

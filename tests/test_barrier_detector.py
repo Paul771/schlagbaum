@@ -327,3 +327,45 @@ def test_detector_module_has_no_capture_dependency():
                         "src", "detect", "barrier.py")
     with open(path, encoding="utf-8") as handle:
         assert "src.capture" not in handle.read()
+
+
+# --- picture dedup and bucket smoothing (calibrated on 2026-10-10 recordings) ---
+
+def test_picture_dedup_flags_only_new_pictures():
+    from src.detect.barrier import PictureDedup
+
+    dedup = PictureDedup()
+    grey = np.full((90, 160), 100, dtype=np.uint8)
+    noisy_copy = grey.copy()
+    noisy_copy[::3, ::2] += 1                  # ~0.17 mean grey level of re-encode noise
+    other = np.full((90, 160), 160, dtype=np.uint8)
+
+    assert dedup.is_new(grey) is True          # first picture is always new
+    assert dedup.is_new(grey) is False         # re-delivered copy
+    assert dedup.is_new(noisy_copy) is False   # re-encode noise (~0.2 level)
+    assert dedup.is_new(other) is True         # a genuinely new picture
+
+
+def test_bucket_smoothing_ignores_a_single_flash_and_has_hysteresis():
+    detector = BarrierDetector(None, bucket_threshold=110.0, bucket_window=5,
+                               bucket_hysteresis=5.0)
+    feed = lambda value: detector._bucket("cam_1", value)
+
+    for value in (120, 121, 119, 122):
+        assert feed(value) == "day"
+    assert feed(89) == "day"          # one headlight flash: median stays ~120
+    for value in (106, 105, 104, 103, 102):
+        bucket = feed(value)
+    assert bucket == "night"          # sustained dusk: below threshold - hysteresis
+    assert feed(111) == "night"       # inside the band: no flip back
+    for value in (118, 119, 120, 121, 122):
+        bucket = feed(value)
+    assert bucket == "day"            # clearly day again
+
+
+def test_bucket_smoothing_is_per_camera():
+    detector = BarrierDetector(None, bucket_threshold=110.0, bucket_window=3,
+                               bucket_hysteresis=5.0)
+    for value in (100, 100, 100):
+        detector._bucket("cam_1", value)
+    assert detector._bucket("cam_2", 125) == "day"
