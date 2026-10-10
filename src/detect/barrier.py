@@ -55,6 +55,7 @@ LIGHT_BUCKETS = ("day", "night")
 _CANNY_LOW = 60
 _CANNY_HIGH = 160
 _MISSING_REFERENCE = "no_reference_for_bucket"
+_NO_CONTENT = "no_scene_content"
 
 
 def _as_gray(frame):
@@ -161,11 +162,13 @@ class BarrierDetector:
     """Classify one snapshot as CLOSED / OPEN / UNKNOWN."""
 
     def __init__(self, references: ReferenceSet, margin: float = 0.15,
-                 open_extent_ratio: float = 0.6, bucket_threshold: float = 60.0):
+                 open_extent_ratio: float = 0.64, bucket_threshold: float = 60.0,
+                 min_content_ratio: float = 0.25):
         self.references = references
         self.margin = float(margin)
         self.open_extent_ratio = float(open_extent_ratio)
         self.bucket_threshold = float(bucket_threshold)
+        self.min_content_ratio = float(min_content_ratio)
 
     def _distance(self, edges, camera_id, bucket, kind) -> float:
         x, y, w, h = self.references.roi(camera_id, kind)
@@ -175,14 +178,21 @@ class BarrierDetector:
             return 1.0
         return float(np.mean(np.not_equal(current, reference)))
 
-    def _geometry_looks_open(self, edges, camera_id) -> bool:
-        """The arm reads as raised when a tall component fills the gate band.
+    def _arm_present(self, edges, camera_id) -> bool:
+        """The arm reads as present when a tall component fills the arm band.
 
-        Measured inside the closed ROI: when the arm is up, the vertical shaft
-        crossing that band is far taller than the flat horizontal bar it
-        replaces, so ``max(component height) >= open_extent_ratio * band height``
-        separates the two orientations. A vehicle crossing the lower frame
-        cannot reach this band, so it cannot spoof the check.
+        Measured inside the closed ROI (the band the arm occupies): a closed
+        arm is a long thin object running most of the band's height, so
+        ``max(component height) >= open_extent_ratio * band height``. A raised
+        arm leaves almost nothing in the band, so only background texture
+        remains and the tallest component stays well below that ratio.
+        Real-footage separation (2026-10-10 fixtures): open frames reach
+        0.59 at most, closed frames start at 0.68. A vehicle crossing the
+        lower frame cannot span the band, so it cannot fake this.
+
+        (The first version tested the opposite way round, assuming a raised
+        arm becomes a tall vertical shaft. On these cameras the closed arm is
+        the tall object, so every real opening came back ``geometric_mismatch``.)
         """
         x, y, w, h = self.references.roi(camera_id, "closed")
         band = (edges[y:y + h, x:x + w] > 0).astype(np.uint8)
@@ -207,6 +217,16 @@ class BarrierDetector:
             return Observation(BarrierState.UNKNOWN, 0.0, _MISSING_REFERENCE)
 
         edges = preprocess(frame)
+
+        # An open arm leaves the band empty, so a featureless frame (blown-out,
+        # fog, covered lens, dead feed) looks "open" to the distance test alone.
+        # Require the frame to carry at least a fraction of the scene's edges.
+        reference = self.references.get(camera_id, bucket, "closed")
+        reference_density = np.count_nonzero(reference) / float(reference.size)
+        density = np.count_nonzero(edges) / float(edges.size)
+        if density < self.min_content_ratio * reference_density:
+            return Observation(BarrierState.UNKNOWN, 0.0, _NO_CONTENT)
+
         d_closed = self._distance(edges, camera_id, bucket, "closed")
         d_open = self._distance(edges, camera_id, bucket, "open")
         gap = abs(d_closed - d_open)
@@ -217,7 +237,7 @@ class BarrierDetector:
             return Observation(BarrierState.UNKNOWN, gap, "ambiguous")
 
         if d_open < d_closed:
-            if not self._geometry_looks_open(edges, camera_id):
+            if self._arm_present(edges, camera_id):
                 return Observation(BarrierState.UNKNOWN, gap, "geometric_mismatch")
             return Observation(BarrierState.OPEN, gap, "")
 

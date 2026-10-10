@@ -5,16 +5,19 @@ exercised with no recording, no network and no sleeping. Validation against
 REAL frames is a later tier (see ``02-RESEARCH.md`` Validation Architecture) —
 these tests prove the logic, not the field calibration.
 
-Fixture geometry (1280x720), chosen so the geometric probe is unambiguous:
+Fixture geometry (1280x720), matching what the real cameras show (2026-10-10):
+a CLOSED arm is a long thin vertical object running most of the arm band, and an
+OPEN arm leaves the band empty:
 
-    mast     x 100..120,  y 60..240     (thin, deliberately ABOVE the gate band)
-    arm      horizontal y 388..412  when closed
-             vertical   y 250..410  when open
+    mast     x 100..120,  y 60..240     (thin, away from the arm band)
+    arm      vertical x 600..624, y 40..520 when closed; absent when open
+    band     x 560..660,  y 20..520     (the closed ROI, reused as the open ROI)
     car      y 540..690  (lower third, below every ROI)
 
-The mast sits above the band so the tallest connected component inside the band
-belongs to the arm alone. The car sits below every ROI so it cannot move either
-distance — which is the whole point of the BARRIER-04 regression test.
+The car sits below the band so it cannot move either distance — which is the
+whole point of the BARRIER-04 regression test. (The first version of this
+fixture modelled the opposite, a horizontal closed arm and a raised vertical
+open arm; real footage disagreed and the geometry probe was inverted.)
 
 Two properties of the render are measured, not decorative:
 
@@ -27,10 +30,9 @@ Two properties of the render are measured, not decorative:
 
 Horizontal background stripes
     Edge maps without texture are ~3% dense and the two classes land closer
-    together than the margin. Stripes must run HORIZONTALLY: vertical ones merge
-    with the raised arm into a full-height connected component inside the gate
-    band, and the geometric probe then reads every closed frame as raised.
-    Measured on this fixture: worst clean gap 0.078 = 3.9x the 0.02 margin.
+    together than the margin. Stripes must run HORIZONTALLY: vertical ones form
+    full-height components inside the arm band, and the arm-presence probe then
+    reads an open frame as a closed arm.
 """
 
 import os
@@ -54,14 +56,11 @@ DAY_BRIGHTNESS = 190
 NIGHT_BRIGHTNESS = 45
 
 MAST_BOX = (100, 60, 20, 180)
-ARM_CLOSED_BOX = (110, 388, 790, 24)
-ARM_OPEN_BOX = (96, 250, 38, 160)
+ARM_CLOSED_BOX = (600, 40, 24, 480)
 CAR_BOX = (300, 540, 550, 150)
-# Both ROIs are narrowed onto the band the arm actually sweeps (y 245..420).
-# The old, looser boxes left a lot of background that is identical in both
-# classes and therefore only diluted the mean that becomes `gap`.
-GATE_BAND = (80, 245, 860, 175)       # the "closed" ROI — also the geometry probe
-PIVOT_REGION = (60, 245, 260, 175)    # the "open" ROI
+# One band around the arm serves as both ROIs (the real cameras do the same:
+# the raised arm leaves nothing to box). It is also the arm-presence probe.
+GATE_BAND = (560, 20, 100, 500)
 
 TEXTURE_PERIOD = 40
 
@@ -107,8 +106,9 @@ def make_scene(state="closed", brightness=DAY_BRIGHTNESS, car=False):
     ink = (ink_for(brightness),) * 3
     cv2.rectangle(frame, (MAST_BOX[0], MAST_BOX[1]),
                   (MAST_BOX[0] + MAST_BOX[2], MAST_BOX[1] + MAST_BOX[3]), ink, -1)
-    arm = ARM_CLOSED_BOX if state == "closed" else ARM_OPEN_BOX
-    cv2.rectangle(frame, (arm[0], arm[1]), (arm[0] + arm[2], arm[1] + arm[3]), ink, -1)
+    if state == "closed":
+        arm = ARM_CLOSED_BOX
+        cv2.rectangle(frame, (arm[0], arm[1]), (arm[0] + arm[2], arm[1] + arm[3]), ink, -1)
     if car:
         cv2.rectangle(frame, (CAR_BOX[0], CAR_BOX[1]),
                       (CAR_BOX[0] + CAR_BOX[2], CAR_BOX[1] + CAR_BOX[3]), CAR_COLOR, -1)
@@ -125,7 +125,7 @@ def references():
         maps[("cam_1", bucket, "closed")] = preprocess(make_scene("closed", brightness))
         maps[("cam_1", bucket, "open")] = preprocess(make_scene("open", brightness))
     rois = {("cam_1", "closed"): to_work(GATE_BAND),
-            ("cam_1", "open"): to_work(PIVOT_REGION)}
+            ("cam_1", "open"): to_work(GATE_BAND)}
     return ReferenceSet(maps=maps, rois=rois)
 
 
@@ -135,7 +135,7 @@ def detector(references):
     # real recordings in plan 02-02. On the current synthetic fixture the
     # worst clean gap is 0.078 (3.9x this margin) — see the measured-separation
     # test below for how that is asserted.
-    return BarrierDetector(references, margin=0.02, open_extent_ratio=0.6)
+    return BarrierDetector(references, margin=0.02, open_extent_ratio=0.64)
 
 def test_preprocess_returns_work_size_edge_map():
     edges = preprocess(make_scene())
@@ -207,7 +207,7 @@ def test_frame_far_from_both_references_returns_unknown_not_a_guess(detector):
                                              dtype=np.uint8)
     result = detector.classify("cam_1", junk)
     assert result.state is BarrierState.UNKNOWN, result
-    assert result.detail in ("ambiguous", "geometric_mismatch")
+    assert result.detail in ("ambiguous", "geometric_mismatch", "no_scene_content")
 
 
 def test_heavy_gaussian_noise_does_not_invent_an_opening(detector):
@@ -237,11 +237,30 @@ def test_missing_reference_bucket_returns_unknown(references):
     assert result.detail == "no_reference_for_bucket"
 
 
-def test_geometric_mismatch_is_reported_when_arm_still_horizontal(references):
-    strict = BarrierDetector(references, margin=0.02, open_extent_ratio=0.99)
+def test_geometric_mismatch_is_reported_when_arm_still_in_band(references):
+    """Nearer the open reference but a tall arm-like component remains: refuse.
+
+    With a tiny ratio any texture in the band counts as "arm present", so the
+    open scene is nearer the open reference yet fails the corroboration.
+    """
+    strict = BarrierDetector(references, margin=0.02, open_extent_ratio=0.005)
     result = strict.classify("cam_1", make_scene("open"))
     assert result.state is BarrierState.UNKNOWN
     assert result.detail == "geometric_mismatch"
+
+
+@pytest.mark.parametrize("level", [0, 90, 120, 255])
+def test_blank_frame_is_unknown_not_open(detector, level):
+    """An open arm leaves the band empty, so a featureless frame must not read open.
+
+    Real-footage finding (2026-10-10): a flat grey frame was nearer the open
+    reference than the closed one on cam_2. Blown-out, foggy or dead-feed frames
+    must be refused, never turned into an opening.
+    """
+    frame = np.full((FRAME_H, FRAME_W, 3), level, dtype=np.uint8)
+    result = detector.classify("cam_1", frame)
+    assert result.state is BarrierState.UNKNOWN, (level, result)
+    assert result.detail == "no_scene_content"
 
 
 def test_reference_set_save_load_round_trip(references, tmp_path):
@@ -279,15 +298,15 @@ def test_class_distance_separation_clears_the_margin(detector):
     Measured on the current fixture (both buckets, both classes):
 
         bucket  scene   d_closed  d_open   gap
-        day     closed   0.0000   0.0984  0.0984   4.9x margin
-        day     open     0.0779   0.0000  0.0779   3.9x margin
-        night   closed   0.0000   0.0998  0.0998   5.0x margin
-        night   open     0.0781   0.0000  0.0781   3.9x margin
+        day     closed   0.0000   0.1053  0.1053   5.3x margin
+        day     open     0.1053   0.0000  0.1053   5.3x margin
+        night   closed   0.0000   0.1062  0.1062   5.3x margin
+        night   open     0.1062   0.0000  0.1062   5.3x margin
 
-    worst clean gap = 0.0779 = 3.9x the provisional 0.02 margin, and day and
-    night agree to within 0.0002. The 02-01 handoff asked for at least 3x; the
-    fixture before this change managed 1.9x, with night/open at 0.007 — i.e.
-    *under* the margin, which is why the day/night test failed.
+    worst clean gap = 0.1053 = 5.3x the provisional 0.02 margin, and day and
+    night agree to within 0.001. (Re-measured 2026-10-10 after the fixture was
+    redrawn to the real camera geometry: closed = tall arm in the band, open =
+    empty band.)
 
     The assertion stays ``gap > margin`` rather than ``gap > 3 * margin``:
     `margin` is recalibrated against real recordings in plan 02-02 and a fixed

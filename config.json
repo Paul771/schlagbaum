@@ -17,7 +17,7 @@
     "references_dir": "data/references",
     "rois_file": "data/references/rois.json",
     "margin": 0.02,
-    "open_extent_ratio": 0.6,
+    "open_extent_ratio": 0.64,
     "dwell_open": 2,
     "dwell_closed": 4,
     "bucket_threshold": 110.0

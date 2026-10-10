@@ -155,7 +155,7 @@ def build_consumers(settings, buffers, stop_event):
         detector = BarrierDetector(
             references,
             margin=float(cfg.get("margin", 0.15)),
-            open_extent_ratio=float(cfg.get("open_extent_ratio", 0.6)),
+            open_extent_ratio=float(cfg.get("open_extent_ratio", 0.64)),
             bucket_threshold=float(cfg.get("bucket_threshold", 60.0)),
         )
         fsm = BarrierFSM(

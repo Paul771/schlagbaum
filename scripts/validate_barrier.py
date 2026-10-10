@@ -87,7 +87,7 @@ def replay_session(session_dir, manifest, references, cfg):
     """
     threshold = float(cfg.get("bucket_threshold", 60.0))
     margin = float(cfg.get("margin", 0.15))
-    open_extent_ratio = float(cfg.get("open_extent_ratio", 0.6))
+    open_extent_ratio = float(cfg.get("open_extent_ratio", 0.64))
     cameras = {}
 
     for camera_id in manifest.get("cameras", {}):
