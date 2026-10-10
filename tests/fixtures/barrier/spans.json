@@ -1,0 +1,15 @@
+{
+  "_comment": "Frame-index spans per session/camera/state for scripts.build_references. Hand-labelled by eye (owner present 2026-10-10 day, 2026-10-06/09 night). Indexes are manifest frame indexes; inclusive ranges. Sessions labelled closed_idle/closed_night with no entry here are taken as all-closed.",
+  "opening__20261010-100104": {
+    "cam_1": {"closed": [[0, 39], [90, 109]], "open": [[40, 72]], "transition": [[73, 89]]},
+    "cam_2": {"closed": [[0, 30], [81, 109]], "open": [[47, 63]], "transition": [[31, 46], [64, 80]]}
+  },
+  "open_night__20261009-224522": {
+    "cam_1": {"open": [[47, 47], [63, 63], [80, 80], [97, 109]]},
+    "cam_2": {"open": [[20, 20], [37, 37], [53, 53], [87, 87], [103, 103]]}
+  },
+  "passive_day__20261010-114411": {
+    "cam_1": {"closed_car": [[265, 265], [1140, 1174]]},
+    "cam_2": {"closed_car": [[1920, 1971]]}
+  }
+}

@@ -1,0 +1,369 @@
+{
+  "bucket_threshold": 110.0,
+  "work_size": [
+    320,
+    180
+  ],
+  "frames": [
+    {
+      "file": "closed_day/cam_1/0.jpg",
+      "camera_id": "cam_1",
+      "state": "closed",
+      "bucket": "day",
+      "session": "closed_idle__20261010-095749",
+      "frame_index": 0,
+      "mean_brightness": 121.5
+    },
+    {
+      "file": "closed_day/cam_1/1.jpg",
+      "camera_id": "cam_1",
+      "state": "closed",
+      "bucket": "day",
+      "session": "closed_idle__20261010-095749",
+      "frame_index": 48,
+      "mean_brightness": 119.5
+    },
+    {
+      "file": "closed_day/cam_1/2.jpg",
+      "camera_id": "cam_1",
+      "state": "closed",
+      "bucket": "day",
+      "session": "closed_idle__20261010-095749",
+      "frame_index": 98,
+      "mean_brightness": 119.9
+    },
+    {
+      "file": "closed_day/cam_1/3.jpg",
+      "camera_id": "cam_1",
+      "state": "closed",
+      "bucket": "day",
+      "session": "opening__20261010-100104",
+      "frame_index": 7,
+      "mean_brightness": 131.2
+    },
+    {
+      "file": "closed_day/cam_1/4.jpg",
+      "camera_id": "cam_1",
+      "state": "closed",
+      "bucket": "day",
+      "session": "opening__20261010-100104",
+      "frame_index": 106,
+      "mean_brightness": 130.1
+    },
+    {
+      "file": "closed_day/cam_2/0.jpg",
+      "camera_id": "cam_2",
+      "state": "closed",
+      "bucket": "day",
+      "session": "closed_idle__20261010-095749",
+      "frame_index": 0,
+      "mean_brightness": 124.8
+    },
+    {
+      "file": "closed_day/cam_2/1.jpg",
+      "camera_id": "cam_2",
+      "state": "closed",
+      "bucket": "day",
+      "session": "closed_idle__20261010-095749",
+      "frame_index": 38,
+      "mean_brightness": 122.1
+    },
+    {
+      "file": "closed_day/cam_2/2.jpg",
+      "camera_id": "cam_2",
+      "state": "closed",
+      "bucket": "day",
+      "session": "closed_idle__20261010-095749",
+      "frame_index": 88,
+      "mean_brightness": 124.0
+    },
+    {
+      "file": "closed_day/cam_2/3.jpg",
+      "camera_id": "cam_2",
+      "state": "closed",
+      "bucket": "day",
+      "session": "opening__20261010-100104",
+      "frame_index": 0,
+      "mean_brightness": 131.9
+    },
+    {
+      "file": "closed_day/cam_2/4.jpg",
+      "camera_id": "cam_2",
+      "state": "closed",
+      "bucket": "day",
+      "session": "closed_idle__20261010-095749",
+      "frame_index": 1,
+      "mean_brightness": 124.0
+    },
+    {
+      "file": "closed_night/cam_1/0.jpg",
+      "camera_id": "cam_1",
+      "state": "closed",
+      "bucket": "night",
+      "session": "closed_night__20261006-224457",
+      "frame_index": 0,
+      "mean_brightness": 95.6
+    },
+    {
+      "file": "closed_night/cam_1/1.jpg",
+      "camera_id": "cam_1",
+      "state": "closed",
+      "bucket": "night",
+      "session": "closed_night__20261006-224457",
+      "frame_index": 42,
+      "mean_brightness": 96.7
+    },
+    {
+      "file": "closed_night/cam_1/2.jpg",
+      "camera_id": "cam_1",
+      "state": "closed",
+      "bucket": "night",
+      "session": "closed_night__20261006-224457",
+      "frame_index": 92,
+      "mean_brightness": 96.5
+    },
+    {
+      "file": "closed_night/cam_1/3.jpg",
+      "camera_id": "cam_1",
+      "state": "closed",
+      "bucket": "night",
+      "session": "closed_night__20261006-231411",
+      "frame_index": 47,
+      "mean_brightness": 93.4
+    },
+    {
+      "file": "closed_night/cam_1/4.jpg",
+      "camera_id": "cam_1",
+      "state": "closed",
+      "bucket": "night",
+      "session": "closed_night__20261006-231411",
+      "frame_index": 97,
+      "mean_brightness": 92.5
+    },
+    {
+      "file": "closed_night/cam_2/0.jpg",
+      "camera_id": "cam_2",
+      "state": "closed",
+      "bucket": "night",
+      "session": "closed_night__20261006-224457",
+      "frame_index": 0,
+      "mean_brightness": 90.8
+    },
+    {
+      "file": "closed_night/cam_2/1.jpg",
+      "camera_id": "cam_2",
+      "state": "closed",
+      "bucket": "night",
+      "session": "closed_night__20261006-224457",
+      "frame_index": 45,
+      "mean_brightness": 91.6
+    },
+    {
+      "file": "closed_night/cam_2/2.jpg",
+      "camera_id": "cam_2",
+      "state": "closed",
+      "bucket": "night",
+      "session": "closed_night__20261006-224457",
+      "frame_index": 95,
+      "mean_brightness": 89.9
+    },
+    {
+      "file": "closed_night/cam_2/3.jpg",
+      "camera_id": "cam_2",
+      "state": "closed",
+      "bucket": "night",
+      "session": "closed_night__20261006-231411",
+      "frame_index": 50,
+      "mean_brightness": 92.1
+    },
+    {
+      "file": "closed_night/cam_2/4.jpg",
+      "camera_id": "cam_2",
+      "state": "closed",
+      "bucket": "night",
+      "session": "closed_night__20261006-231411",
+      "frame_index": 100,
+      "mean_brightness": 91.9
+    },
+    {
+      "file": "closed_car_day/cam_1/0.jpg",
+      "camera_id": "cam_1",
+      "state": "closed_car",
+      "bucket": "day",
+      "session": "passive_day__20261010-114411",
+      "frame_index": 265,
+      "mean_brightness": 118.7
+    },
+    {
+      "file": "closed_car_day/cam_1/1.jpg",
+      "camera_id": "cam_1",
+      "state": "closed_car",
+      "bucket": "day",
+      "session": "passive_day__20261010-114411",
+      "frame_index": 1140,
+      "mean_brightness": 126.8
+    },
+    {
+      "file": "closed_car_day/cam_1/2.jpg",
+      "camera_id": "cam_1",
+      "state": "closed_car",
+      "bucket": "day",
+      "session": "passive_day__20261010-114411",
+      "frame_index": 1157,
+      "mean_brightness": 127.0
+    },
+    {
+      "file": "closed_car_day/cam_1/3.jpg",
+      "camera_id": "cam_1",
+      "state": "closed_car",
+      "bucket": "day",
+      "session": "passive_day__20261010-114411",
+      "frame_index": 1174,
+      "mean_brightness": 126.6
+    },
+    {
+      "file": "closed_car_day/cam_2/0.jpg",
+      "camera_id": "cam_2",
+      "state": "closed_car",
+      "bucket": "day",
+      "session": "passive_day__20261010-114411",
+      "frame_index": 1920,
+      "mean_brightness": 126.8
+    },
+    {
+      "file": "closed_car_day/cam_2/1.jpg",
+      "camera_id": "cam_2",
+      "state": "closed_car",
+      "bucket": "day",
+      "session": "passive_day__20261010-114411",
+      "frame_index": 1936,
+      "mean_brightness": 125.2
+    },
+    {
+      "file": "closed_car_day/cam_2/2.jpg",
+      "camera_id": "cam_2",
+      "state": "closed_car",
+      "bucket": "day",
+      "session": "passive_day__20261010-114411",
+      "frame_index": 1953,
+      "mean_brightness": 124.0
+    },
+    {
+      "file": "closed_car_day/cam_2/3.jpg",
+      "camera_id": "cam_2",
+      "state": "closed_car",
+      "bucket": "day",
+      "session": "passive_day__20261010-114411",
+      "frame_index": 1970,
+      "mean_brightness": 122.7
+    },
+    {
+      "file": "open_day/cam_1/0.jpg",
+      "camera_id": "cam_1",
+      "state": "open",
+      "bucket": "day",
+      "session": "opening__20261010-100104",
+      "frame_index": 40,
+      "mean_brightness": 130.1
+    },
+    {
+      "file": "open_day/cam_1/1.jpg",
+      "camera_id": "cam_1",
+      "state": "open",
+      "bucket": "day",
+      "session": "opening__20261010-100104",
+      "frame_index": 56,
+      "mean_brightness": 129.6
+    },
+    {
+      "file": "open_day/cam_2/0.jpg",
+      "camera_id": "cam_2",
+      "state": "open",
+      "bucket": "day",
+      "session": "opening__20261010-100104",
+      "frame_index": 47,
+      "mean_brightness": 131.9
+    },
+    {
+      "file": "open_night/cam_1/0.jpg",
+      "camera_id": "cam_1",
+      "state": "open",
+      "bucket": "night",
+      "session": "open_night__20261009-224522",
+      "frame_index": 47,
+      "mean_brightness": 91.6
+    },
+    {
+      "file": "open_night/cam_1/1.jpg",
+      "camera_id": "cam_1",
+      "state": "open",
+      "bucket": "night",
+      "session": "open_night__20261009-224522",
+      "frame_index": 63,
+      "mean_brightness": 89.8
+    },
+    {
+      "file": "open_night/cam_1/2.jpg",
+      "camera_id": "cam_1",
+      "state": "open",
+      "bucket": "night",
+      "session": "open_night__20261009-224522",
+      "frame_index": 80,
+      "mean_brightness": 91.0
+    },
+    {
+      "file": "open_night/cam_1/3.jpg",
+      "camera_id": "cam_1",
+      "state": "open",
+      "bucket": "night",
+      "session": "open_night__20261009-224522",
+      "frame_index": 97,
+      "mean_brightness": 91.7
+    },
+    {
+      "file": "open_night/cam_2/0.jpg",
+      "camera_id": "cam_2",
+      "state": "open",
+      "bucket": "night",
+      "session": "open_night__20261009-224522",
+      "frame_index": 20,
+      "mean_brightness": 90.0
+    },
+    {
+      "file": "open_night/cam_2/1.jpg",
+      "camera_id": "cam_2",
+      "state": "open",
+      "bucket": "night",
+      "session": "open_night__20261009-224522",
+      "frame_index": 37,
+      "mean_brightness": 90.4
+    },
+    {
+      "file": "open_night/cam_2/2.jpg",
+      "camera_id": "cam_2",
+      "state": "open",
+      "bucket": "night",
+      "session": "open_night__20261009-224522",
+      "frame_index": 53,
+      "mean_brightness": 97.5
+    },
+    {
+      "file": "open_night/cam_2/3.jpg",
+      "camera_id": "cam_2",
+      "state": "open",
+      "bucket": "night",
+      "session": "open_night__20261009-224522",
+      "frame_index": 87,
+      "mean_brightness": 97.7
+    },
+    {
+      "file": "open_night/cam_2/4.jpg",
+      "camera_id": "cam_2",
+      "state": "open",
+      "bucket": "night",
+      "session": "open_night__20261009-224522",
+      "frame_index": 103,
+      "mean_brightness": 93.1
+    }
+  ]
+}

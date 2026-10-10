@@ -20,6 +20,6 @@
     "open_extent_ratio": 0.6,
     "dwell_open": 2,
     "dwell_closed": 4,
-    "bucket_threshold": 60.0
+    "bucket_threshold": 110.0
   }
 }
